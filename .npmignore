@@ -1,0 +1,33 @@
+# Source files (only include compiled dist/)
+src/
+tests/
+examples/
+
+# Configuration files
+.eslintrc.json
+.prettierrc.json
+jest.config.js
+tsconfig*.json
+
+# Build artifacts
+*.tsbuildinfo
+coverage/
+
+# Development files
+.github/
+.vscode/
+.idea/
+
+# Documentation (except README and LICENSE)
+docs/
+
+# Environment and test files
+.env
+.env.*
+*.test.ts
+*.spec.ts
+
+# Misc
+.DS_Store
+*.log
+node_modules/
