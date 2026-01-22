@@ -1,0 +1,948 @@
+# =============================================================================
+# SDK Generation Template for ZipTax API
+# =============================================================================
+# This template provides a comprehensive spec for codegen agents
+
+# -----------------------------------------------------------------------------
+# Project Metadata
+# -----------------------------------------------------------------------------
+project:
+  name: "ziptax-node"
+  language: "typescript"
+  version: "1.0.0"
+  description: "Official Node.js SDK for the ZipTax API"
+
+  # Repository information
+  repository:
+    url: "https://github.com/ziptax/ziptax-node"
+    type: "git"
+
+  # License
+  license: "MIT"
+
+  # Maintainer information
+  maintainers:
+    - name: "ZipTax Team"
+      email: "support@zip.tax"
+
+# -----------------------------------------------------------------------------
+# API Configuration
+# -----------------------------------------------------------------------------
+api:
+  # Base API details
+  name: "ZipTax API"
+  version: "v60"
+  base_url: "https://api.zip-tax.com/"
+
+  # API specification source
+  spec:
+    type: "openapi"
+    version: "3.0.0"
+    source: "https://api.zip-tax.com/openapi.json"
+
+  # Authentication methods
+  authentication:
+    type: "api_key"
+    location: "header"
+    parameter_name: "X-API-Key"
+
+    # Additional auth configurations
+    supports_multiple_methods: false
+    methods: []
+
+# -----------------------------------------------------------------------------
+# SDK Configuration
+# -----------------------------------------------------------------------------
+sdk:
+  # Package/module naming
+  package_name: "ziptax"
+  namespace: "Ziptax"
+
+  # SDK structure approach
+  structure:
+    type: "client-based"
+    client_class: "ZiptaxClient"
+
+  # Features to include
+  features:
+    async_support: true       # Include async/await methods (native in Node.js)
+    retry_logic: true         # Automatic retry on failures
+    request_logging: true     # Built-in request/response logging
+    response_caching: false   # Cache responses
+    pagination_helpers: true  # Helper methods for paginated endpoints
+    batch_operations: false   # Batch request support
+    webhooks: false           # Webhook handling utilities
+
+  # Error handling
+  error_handling:
+    use_custom_exceptions: true
+    exception_hierarchy: true  # Create exception hierarchy extending Error
+    include_retry_exceptions: true
+
+  # Type safety
+  type_safety:
+    use_typescript: true      # Use TypeScript for full type safety
+    validate_inputs: true     # Runtime input validation
+    strict_mode: true         # Enable strict TypeScript compiler options
+
+# -----------------------------------------------------------------------------
+# API Endpoints & Resources
+# -----------------------------------------------------------------------------
+# Define the API structure and endpoints to implement
+resources:
+      - name: "GetSalesTaxByAddress"
+        http_method: "GET"
+        path: "/request/v60/"
+        description: "Returns sales and use tax rate details from an address input."
+        operation_id: "getTaxRatesV60"
+        parameters:
+          - name: "address"
+            type: "string"
+            required: true
+            location: "query"
+            description: "Full or partial street address for geocoding"
+            validation:
+              max_length: 100
+          - name: "taxabilityCode"
+            type: "string"
+            format: "number"
+            required: false
+            location: "query"
+            description: "Taxability Code (product or service code)"
+            validation:
+              pattern: "^[0-9]+$"
+          - name: "countryCode"
+            type: "string"
+            required: false
+            location: "query"
+            description: "Country code"
+            default: "USA"
+            enum: ["USA", "CAN"]
+          - name: "historical"
+            type: "string"
+            format: "date"
+            required: false
+            location: "query"
+            description: "Historical date for rates (YYYY-MM format)"
+            validation:
+              pattern: "^[0-9]{4}-[0-9]{2}$"
+          - name: "format"
+            type: "string"
+            required: false
+            location: "query"
+            description: "Response format"
+            default: "json"
+            enum: ["json", "xml"]
+        returns:
+          type: "V60Response"
+          is_array: false
+      - name: "GetSalesTaxByGeoLocation"
+        http_method: "GET"
+        path: "/request/v60/"
+        description: "Returns sales and use tax rate details from a geolocation input."
+        operation_id: "getTaxRatesV60"
+        parameters:
+          - name: "lat"
+            type: "string"
+            required: true
+            location: "query"
+            description: "Latitude for geolocation"
+            validation:
+              max_length: 100
+          - name: "lng"
+            type: "string"
+            required: true
+            location: "query"
+            description: "Longitude for geolocation"
+            validation:
+              max_length: 100
+          - name: "countryCode"
+            type: "string"
+            required: false
+            location: "query"
+            description: "Country code"
+            default: "USA"
+            enum: ["USA", "CAN"]
+          - name: "historical"
+            type: "string"
+            format: "date"
+            required: false
+            location: "query"
+            description: "Historical date for rates (YYYY-MM format)"
+            validation:
+              pattern: "^[0-9]{4}-[0-9]{2}$"
+          - name: "format"
+            type: "string"
+            required: false
+            location: "query"
+            description: "Response format"
+            default: "json"
+            enum: ["json", "xml"]
+        returns:
+          type: "V60Response"
+          is_array: false
+      - name: "GetAccountMetrics"
+        http_method: "GET"
+        path: "/account/v60/metrics"
+        description: "Returns account metrics related to sales and use tax."
+        operation_id: "getAccountMetricsV60"
+        parameters:
+          - name: "key"
+            type: "string"
+            required: false
+            location: "query"
+            description: "Response format"
+            default: "json"
+            enum: ["json", "xml"]
+        returns:
+          type: "V60AccountMetrics"
+          is_array: false
+          
+# -----------------------------------------------------------------------------
+# Data Models
+# -----------------------------------------------------------------------------
+# Define the data structures/models used in the API
+#
+# IMPORTANT IMPLEMENTATION NOTES:
+# 1. Use TypeScript interfaces and types for all data models
+# 2. API returns camelCase fields - SDK should maintain camelCase for consistency
+# 3. Many fields are OPTIONAL in real responses despite appearing required
+# 4. Jurisdiction names (jurName) contain actual values like "CA", "ORANGE" - NOT enums
+# 5. See "actual_api_responses" section below for real response structures
+models:
+  # ---------------------------------------------------------------------------
+  # API Version 6.0 Models (Latest)
+  # ---------------------------------------------------------------------------
+  - name: "V60Response"
+    description: "Response for v6.0 API - structured format with separate components"
+    properties:
+      - name: "metadata"
+        type: "V60Metadata"
+        required: true
+        description: "Response metadata"
+      - name: "base_rates"
+        type: "array"
+        items_type: "V60BaseRate"
+        required: false  # Can be null/missing
+        api_field: "baseRates"  # API uses camelCase
+        description: "Base tax rates by jurisdiction"
+      - name: "service"
+        type: "V60Service"
+        required: true
+        description: "Service taxability information"
+      - name: "shipping"
+        type: "V60Shipping"
+        required: true
+        description: "Shipping taxability information"
+      - name: "sourcing_rules"
+        type: "V60SourcingRules"
+        required: false  # Can be null/missing
+        api_field: "sourcingRules"  # IMPORTANT: API field is 'sourcingRules' not 'originDestination'
+        description: "Sourcing rules (origin vs destination)"
+      - name: "tax_summaries"
+        type: "array"
+        items_type: "V60TaxSummary"
+        required: false  # Can be null/missing
+        api_field: "taxSummaries"  # API uses camelCase
+        description: "Tax rate summaries"
+      - name: "addressDetail"
+        type: "V60AddressDetail"
+        required: true
+        api_field: "addressDetail"  # API keeps this as camelCase (no snake_case conversion)
+        description: "Address details"
+
+  - name: "V60Metadata"
+    description: "Metadata for v6.0 response"
+    properties:
+      - name: "version"
+        type: "string"
+        required: true
+        description: "API version"
+        example: "v60"
+      - name: "response"
+        type: "V60ResponseInfo"
+        required: true
+        description: "Response information (NESTED OBJECT - not flat)"
+
+  - name: "V60ResponseInfo"
+    description: "Response information nested in metadata"
+    properties:
+      - name: "code"
+        type: "integer"
+        format: "int64"
+        required: true
+        description: "Response code (100=success)"
+        example: 100
+      - name: "name"
+        type: "string"
+        required: true
+        description: "Response code name"
+        example: "RESPONSE_CODE_SUCCESS"
+      - name: "message"
+        type: "string"
+        required: true
+        description: "Response message"
+        example: "Successful API Request."
+      - name: "definition"
+        type: "string"
+        required: true
+        description: "Schema definition URL"
+        example: "http://api.zip-tax.com/request/v60/schema"
+
+  - name: "V60BaseRate"
+    description: "Base tax rate for a specific jurisdiction"
+    properties:
+      - name: "rate"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Tax rate (decimal format, e.g., 0.0775 for 7.75%)"
+      - name: "rate_id"
+        type: "string"
+        required: false  # OPTIONAL in real API responses
+        api_field: "rateId"  # API uses camelCase
+        description: "Rate identifier from tax table"
+      - name: "jur_type"
+        type: "string"  # STRING not enum - API may return various types
+        required: true
+        api_field: "jurType"  # API uses camelCase
+        description: "Jurisdiction type (e.g., US_STATE_SALES_TAX, US_COUNTY_SALES_TAX)"
+        example: "US_STATE_SALES_TAX"
+      - name: "jur_name"
+        type: "string"  # STRING not enum - contains actual names like "CA", "ORANGE"
+        required: true
+        api_field: "jurName"  # API uses camelCase
+        description: "Actual jurisdiction name (e.g., 'CA', 'ORANGE', 'IRVINE')"
+        example: "CA"
+      - name: "jur_description"
+        type: "string"
+        required: false  # OPTIONAL in real API responses
+        api_field: "jurDescription"  # API uses camelCase
+        description: "Human-readable jurisdiction description"
+        example: "US State Sales Tax"
+      - name: "jur_tax_code"
+        type: "string"
+        required: false  # OPTIONAL in real API responses
+        api_field: "jurTaxCode"  # API uses camelCase
+        description: "Tax code for jurisdiction"
+        example: "06"
+
+  - name: "V60Service"
+    description: "Service taxability information"
+    properties:
+      - name: "adjustment_type"
+        type: "string"
+        required: true
+        api_field: "adjustmentType"  # API uses camelCase
+        description: "Service adjustment type"
+        example: "SERVICE_TAXABLE"
+      - name: "taxable"
+        type: "string"
+        required: true
+        description: "Taxability indicator"
+        enum: ["Y", "N"]
+      - name: "description"
+        type: "string"
+        required: true
+        description: "Service description"
+
+  - name: "V60Shipping"
+    description: "Shipping taxability information"
+    properties:
+      - name: "adjustment_type"
+        type: "string"
+        required: true
+        api_field: "adjustmentType"  # API uses camelCase
+        description: "Shipping adjustment type"
+        example: "FREIGHT_TAXABLE"
+      - name: "taxable"
+        type: "string"
+        required: true
+        description: "Taxability indicator"
+        enum: ["Y", "N"]
+      - name: "description"
+        type: "string"
+        required: true
+        description: "Shipping description"
+
+  - name: "V60SourcingRules"
+    description: "Sourcing rules (origin vs destination) - API field is 'sourcingRules'"
+    api_field: "sourcingRules"  # IMPORTANT: Not 'originDestination'
+    properties:
+      - name: "adjustment_type"
+        type: "string"
+        required: true
+        api_field: "adjustmentType"  # API uses camelCase
+        description: "Sourcing rules type"
+        example: "ORIGIN_DESTINATION"
+      - name: "description"
+        type: "string"
+        required: true
+        description: "Sourcing rules description"
+        example: "Destination Based Taxation"
+      - name: "value"
+        type: "string"
+        required: true
+        description: "Origin/destination indicator"
+        enum: ["O", "D"]
+
+  - name: "V60TaxSummary"
+    description: "Tax rate summary"
+    properties:
+      - name: "rate"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Summary tax rate"
+      - name: "tax_type"
+        type: "string"  # STRING not strict enum
+        required: true
+        api_field: "taxType"  # API uses camelCase
+        description: "Tax type (e.g., SALES_TAX, USE_TAX)"
+        example: "SALES_TAX"
+      - name: "summary_name"
+        type: "string"
+        required: true
+        api_field: "summaryName"  # API uses camelCase
+        description: "Summary description"
+        example: "Total Base Sales Tax"
+      - name: "display_rates"
+        type: "array"
+        items_type: "V60DisplayRate"
+        required: true
+        api_field: "displayRates"  # API uses camelCase
+        description: "Array of display rate breakdowns"
+
+  - name: "V60DisplayRate"
+    description: "Display rate breakdown within tax summary"
+    properties:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "Display rate name"
+        example: "Total Rate"
+      - name: "rate"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Display rate value"
+        example: 0.0775
+
+  - name: "V60AddressDetail"
+    description: "Address detail information for v6.0"
+    properties:
+      - name: "normalizedAddress"
+        type: "string"
+        required: true
+        description: "Normalized address"
+      - name: "incorporated"
+        type: "string"
+        required: true
+        description: "Incorporation status"
+        enum: ["true", "false"]
+      - name: "geoLat"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Geocoded latitude"
+      - name: "geoLng"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Geocoded longitude"
+  - name: "V60AccountMetrics"
+    description: "Account metrics by API key"
+    properties:
+      - name: "core_request_count"
+        type: "integer"
+        format: "int64"
+        required: true
+        description: "Number of core API requests made"
+      - name: "core_request_limit"
+        type: "integer"
+        format: "int64"
+        required: true
+        description: "Maximum allowed core API requests"
+      - name: "core_usage_percent"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Percentage of core request limit used"
+      - name: "geo_enabled"
+        type: "boolean"
+        required: true
+        description: "Whether geolocation features are enabled"
+      - name: "geo_request_count"
+        type: "integer"
+        format: "int64"
+        required: true
+        description: "Number of geolocation requests made"
+      - name: "geo_request_limit"
+        type: "integer"
+        format: "int64"
+        required: true
+        description: "Maximum allowed geolocation requests"
+      - name: "geo_usage_percent"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Percentage of geolocation request limit used"
+      - name: "is_active"
+        type: "boolean"
+        required: true
+        description: "Whether the account is currently active"
+      - name: "message"
+        type: "string"
+        required: true
+        description: "Account status or informational message"
+
+
+# -----------------------------------------------------------------------------
+# Dependencies
+# -----------------------------------------------------------------------------
+dependencies:
+  # Runtime dependencies
+  runtime:
+    - name: "axios"           # HTTP client library
+      version: "^1.6.0"
+      purpose: "HTTP requests"
+    - name: "zod"             # Runtime type validation (optional)
+      version: "^3.22.0"
+      purpose: "Runtime data validation"
+      optional: true
+
+  # Development dependencies
+  development:
+    - name: "@types/node"
+      version: "^20.0.0"
+      purpose: "Node.js type definitions"
+    - name: "typescript"
+      version: "^5.0.0"
+      purpose: "TypeScript compiler"
+    - name: "jest"
+      version: "^29.0.0"
+      purpose: "Testing framework"
+    - name: "@types/jest"
+      version: "^29.0.0"
+      purpose: "Jest type definitions"
+    - name: "ts-jest"
+      version: "^29.0.0"
+      purpose: "TypeScript support for Jest"
+    - name: "eslint"
+      version: "^8.0.0"
+      purpose: "Linting"
+    - name: "@typescript-eslint/parser"
+      version: "^6.0.0"
+      purpose: "TypeScript parser for ESLint"
+    - name: "@typescript-eslint/eslint-plugin"
+      version: "^6.0.0"
+      purpose: "TypeScript linting rules"
+    - name: "prettier"
+      version: "^3.0.0"
+      purpose: "Code formatting"
+    - name: "tsx"
+      version: "^4.0.0"
+      purpose: "TypeScript execution for examples"
+
+# -----------------------------------------------------------------------------
+# Project Structure
+# -----------------------------------------------------------------------------
+# Define the directory structure for the SDK
+structure:
+  root_files:
+    - "README.md"
+    - "LICENSE"
+    - "package.json"
+    - ".gitignore"
+    - "tsconfig.json"
+    - ".npmignore"
+
+  directories:
+    - path: "src"
+      contents:
+        - "index.ts"
+        - "client.ts"
+        - "config.ts"
+        - "exceptions.ts"
+
+    - path: "src/resources"
+      contents:
+        - "index.ts"
+        - "functions.ts"
+
+    - path: "src/models"
+      contents:
+        - "index.ts"
+        - "responses.ts"
+
+    - path: "src/utils"
+      contents:
+        - "index.ts"
+        - "http.ts"
+        - "retry.ts"
+        - "validation.ts"
+
+    - path: "tests"
+      contents:
+        - "client.test.ts"
+        - "functions.test.ts"
+        - "http.test.ts"      # REQUIRED: Tests for HTTPClient utility
+        - "retry.test.ts"     # REQUIRED: Tests for retry logic
+        - "setup.ts"
+
+    - path: "examples"
+      contents:
+        - "basic-usage.ts"
+        - "async-usage.ts"
+        - "error-handling.ts"
+
+    - path: "docs"
+      contents:
+        - "index.md"
+        - "quickstart.md"
+        - "api-reference.md"
+
+# -----------------------------------------------------------------------------
+# Code Generation Settings
+# -----------------------------------------------------------------------------
+code_generation:
+  # Style guide compliance
+  style:
+    follow_language_conventions: true
+    style_guide: "Airbnb/Standard"
+    line_length: 100
+    indent_size: 2
+    indent_style: "spaces"
+    semicolons: true
+    quotes: "single"
+
+  # Documentation
+  documentation:
+    style: "jsdoc"
+    include_examples: true
+    include_type_info: true
+    minimum_coverage: "public_api"
+
+  # Testing
+  testing:
+    framework: "jest"
+    include_unit_tests: true
+    include_integration_tests: true
+    mock_api_responses: true
+    target_coverage: 80
+
+  # Code quality
+  quality:
+    include_linter_config: true
+    include_formatter_config: true
+    include_type_checker_config: true
+    include_pre_commit_hooks: false
+
+# -----------------------------------------------------------------------------
+# Build & Distribution
+# -----------------------------------------------------------------------------
+build:
+  # Build system
+  system: "typescript"
+
+  # Build configuration
+  output_directory: "dist"
+  output_formats:
+    - "cjs"      # CommonJS
+    - "esm"      # ES Modules
+
+  # Distribution
+  distribution:
+    platforms:
+      - "npm"
+
+    # Package metadata
+    keywords:
+      - "tax"
+      - "ziptax"
+      - "api"
+      - "sdk"
+      - "sales tax"
+      - "node"
+      - "typescript"
+
+# -----------------------------------------------------------------------------
+# Documentation
+# -----------------------------------------------------------------------------
+documentation:
+  # Documentation tools
+  generator: "typedoc"
+  output: "docs/api"
+
+  # Content requirements
+  sections:
+    - name: "Installation"
+      required: true
+    - name: "Quick Start"
+      required: true
+    - name: "Authentication"
+      required: true
+    - name: "API Reference"
+      required: true
+      auto_generate: true
+    - name: "Error Handling"
+      required: true
+    - name: "Examples"
+      required: true
+    - name: "Contributing"
+      required: false
+    - name: "Changelog"
+      required: true
+
+  # API documentation
+  api_docs:
+    include_request_examples: true
+    include_response_examples: true
+    include_error_examples: true
+    format: "markdown"
+
+# -----------------------------------------------------------------------------
+# Examples
+# -----------------------------------------------------------------------------
+examples:
+  - name: "Basic Usage"
+    file: "examples/basic-usage.ts"
+    description: "Simple example showing basic SDK initialization and usage"
+    required: true
+
+  - name: "Async Operations"
+    file: "examples/async-usage.ts"
+    description: "Example using async/await for concurrent operations"
+    required: false
+
+  - name: "Error Handling"
+    file: "examples/error-handling.ts"
+    description: "Demonstrates proper error handling patterns"
+    required: true
+
+# -----------------------------------------------------------------------------
+# CI/CD Configuration
+# -----------------------------------------------------------------------------
+ci_cd:
+  # Continuous Integration
+  platform: "github_actions"
+
+  workflows:
+    - name: "Test"
+      triggers: ["push", "pull_request"]
+      jobs:
+        - "lint"
+        - "type-check"
+        - "test"
+        - "coverage"
+
+    - name: "Publish"
+      triggers: ["release"]
+      jobs:
+        - "build"
+        - "publish"
+
+  # Testing matrix
+  test_matrix:
+    node_versions: ["18.x", "20.x", "22.x"]
+    os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+
+# -----------------------------------------------------------------------------
+# Additional Instructions
+# -----------------------------------------------------------------------------
+# Any special instructions or considerations for this SDK
+instructions:
+  special_considerations:
+    - "Ensure all monetary values use appropriate number types"
+    - "ZIP codes should be validated for format"
+    - "Date handling should respect timezone requirements"
+    - "All API responses should be properly typed with TypeScript interfaces"
+    - "Use camelCase for all field names to match API conventions"
+
+  # Code patterns to follow
+  patterns:
+    - pattern: "Config-based client initialization"
+      example: |
+        const client = new ZiptaxClient({ apiKey: 'xxx' });
+        const result = await client.getSalesTaxByAddress({
+          address: '200 Spectrum Center Drive, Irvine, CA 92618'
+        });
+
+    - pattern: "Resource-based method organization"
+      example: "await client.getSalesTaxByAddress({ address })"
+
+    - pattern: "Consistent error handling"
+      example: "try/catch blocks with specific exception types"
+
+  # Avoid these patterns
+  anti_patterns:
+    - "Don't use global state for configuration"
+    - "Avoid bare catch clauses without error handling"
+    - "Don't use 'any' type - leverage TypeScript's type system"
+
+# -----------------------------------------------------------------------------
+# Actual API Response Examples
+# -----------------------------------------------------------------------------
+# CRITICAL: These are REAL API responses - use these to validate model structure
+actual_api_responses:
+  v60_tax_lookup:
+    description: "Actual V60 response for GetSalesTaxByAddress"
+    endpoint: "GET /request/v60/"
+    example: |
+      {
+        "metadata": {
+          "version": "v60",
+          "response": {
+            "code": 100,
+            "name": "RESPONSE_CODE_SUCCESS",
+            "message": "Successful API Request.",
+            "definition": "http://api.zip-tax.com/request/v60/schema"
+          }
+        },
+        "baseRates": [
+          {
+            "rate": 0.06,
+            "jurType": "US_STATE_SALES_TAX",
+            "jurName": "CA",
+            "jurDescription": "US State Sales Tax",
+            "jurTaxCode": "06"
+          },
+          {
+            "rate": 0.0025,
+            "jurType": "US_COUNTY_SALES_TAX",
+            "jurName": "ORANGE",
+            "jurDescription": "US County Sales Tax"
+          },
+          {
+            "rate": 0.015,
+            "jurType": "US_CITY_SALES_TAX",
+            "jurName": "IRVINE"
+          }
+        ],
+        "service": {
+          "adjustmentType": "SERVICE_TAXABLE",
+          "taxable": "N",
+          "description": "Services non-taxable"
+        },
+        "shipping": {
+          "adjustmentType": "FREIGHT_TAXABLE",
+          "taxable": "N",
+          "description": "Freight non-taxable"
+        },
+        "sourcingRules": {
+          "adjustmentType": "ORIGIN_DESTINATION",
+          "description": "Destination Based Taxation",
+          "value": "D"
+        },
+        "taxSummaries": [
+          {
+            "rate": 0.0775,
+            "taxType": "SALES_TAX",
+            "summaryName": "Total Base Sales Tax",
+            "displayRates": [
+              {
+                "name": "Total Rate",
+                "rate": 0.0775
+              }
+            ]
+          }
+        ],
+        "addressDetail": {
+          "normalizedAddress": "200 Spectrum Center Dr, Irvine, CA 92618-5003, United States",
+          "incorporated": "true",
+          "geoLat": 33.65253,
+          "geoLng": -117.74794
+        }
+      }
+
+  v60_account_metrics:
+    description: "Actual V60AccountMetrics response"
+    endpoint: "GET /account/v60/metrics"
+    example: |
+      {
+        "core_request_count": 15595,
+        "core_request_limit": 1000000,
+        "core_usage_percent": 1.5595,
+        "geo_enabled": true,
+        "geo_request_count": 43891,
+        "geo_request_limit": 1000000,
+        "geo_usage_percent": 4.3891,
+        "is_active": true,
+        "message": "Contact support@zip.tax to modify your account"
+      }
+
+# -----------------------------------------------------------------------------
+# CI/CD Quality Requirements
+# -----------------------------------------------------------------------------
+# These are MANDATORY - all checks must pass for the SDK to be release-ready
+quality_requirements:
+  code_coverage:
+    minimum: 80
+    tool: "jest"
+    command: "jest --coverage --coverageThreshold='{\"global\":{\"lines\":80}}'"
+    critical_modules:
+      - "src/utils/http.ts"
+      - "src/utils/retry.ts"
+      - "src/exceptions.ts"
+
+  type_checking:
+    tool: "typescript"
+    version: "^5.0.0"
+    strict: true
+    command: "tsc --noEmit"
+    config:
+      strict: true
+      noImplicitAny: true
+      strictNullChecks: true
+      strictFunctionTypes: true
+      noUnusedLocals: true
+      noUnusedParameters: true
+    notes:
+      - "Enable strict mode in tsconfig.json"
+      - "All functions must have explicit return types"
+      - "No use of 'any' type without explicit justification"
+
+  code_formatting:
+    tool: "prettier"
+    version: "^3.0.0"
+    line_length: 100
+    command: "prettier --check 'src/**/*.ts' 'tests/**/*.ts'"
+    config:
+      semi: true
+      singleQuote: true
+      trailingComma: "es5"
+      printWidth: 100
+
+  linting:
+    tool: "eslint"
+    version: "^8.0.0"
+    command: "eslint 'src/**/*.ts' 'tests/**/*.ts'"
+    config:
+      extends:
+        - "eslint:recommended"
+        - "plugin:@typescript-eslint/recommended"
+      rules:
+        "@typescript-eslint/no-explicit-any": "error"
+        "@typescript-eslint/explicit-function-return-type": "warn"
+    notes:
+      - "Disallow 'any' type usage"
+      - "Require explicit return types on exported functions"
+
+  typescript_requirements:
+    version: "^5.0.0"
+    strict_mode: true
+    notes:
+      - "Use interfaces for all API response types"
+      - "Export all public types from index.ts"
+      - "Maintain camelCase field names to match API"
+
+# -----------------------------------------------------------------------------
+# Version History
+# -----------------------------------------------------------------------------
+version_history:
+  - version: "1.0.0"
+    date: "2024-01-15"
+    changes:
+      - "Initial release"
+      - "Support for TaxRates and Jurisdictions resources"
+      - "Basic authentication and error handling"
