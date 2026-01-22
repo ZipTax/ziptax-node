@@ -86,11 +86,38 @@ describe('HTTPClient', () => {
     });
   });
 
+  describe('post', () => {
+    it('should make POST request and return data', async () => {
+      const mockData = { result: 'success' };
+      const postData = { key: 'value' };
+      mockAxiosInstance.request.mockResolvedValue({ data: mockData });
+
+      const result = await httpClient.post('/test', postData);
+
+      expect(result).toEqual(mockData);
+      expect(mockAxiosInstance.request).toHaveBeenCalledWith({
+        method: 'POST',
+        url: '/test',
+        data: postData,
+      });
+    });
+  });
+
   describe('error handling', () => {
     it('should throw ZiptaxAuthenticationError for 401', async () => {
       mockAxiosInstance.request.mockRejectedValue({
         isAxiosError: true,
         response: { status: 401, data: { message: 'Unauthorized' } },
+      });
+      mockedAxios.isAxiosError.mockReturnValue(true);
+
+      await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAuthenticationError);
+    });
+
+    it('should throw ZiptaxAuthenticationError for 403', async () => {
+      mockAxiosInstance.request.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 403, data: { message: 'Forbidden' } },
       });
       mockedAxios.isAxiosError.mockReturnValue(true);
 
@@ -109,6 +136,22 @@ describe('HTTPClient', () => {
       mockedAxios.isAxiosError.mockReturnValue(true);
 
       await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxRateLimitError);
+    });
+
+    it('should throw ZiptaxRateLimitError without retry-after header', async () => {
+      mockAxiosInstance.request.mockRejectedValue({
+        isAxiosError: true,
+        response: {
+          status: 429,
+          data: { message: 'Rate limit exceeded' },
+          headers: {},
+        },
+      });
+      mockedAxios.isAxiosError.mockReturnValue(true);
+
+      const error = (await httpClient.get('/test').catch((e) => e)) as ZiptaxRateLimitError;
+      expect(error).toBeInstanceOf(ZiptaxRateLimitError);
+      expect(error.retryAfter).toBeUndefined();
     });
 
     it('should throw ZiptaxNetworkError for network failures', async () => {
@@ -130,6 +173,54 @@ describe('HTTPClient', () => {
       mockedAxios.isAxiosError.mockReturnValue(true);
 
       await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAPIError);
+    });
+
+    it('should extract error message from string data', async () => {
+      mockAxiosInstance.request.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 400, data: 'Bad Request Error' },
+      });
+      mockedAxios.isAxiosError.mockReturnValue(true);
+
+      const error = (await httpClient.get('/test').catch((e) => e)) as ZiptaxAPIError;
+      expect(error.message).toBe('Bad Request Error');
+    });
+
+    it('should extract error message from error field', async () => {
+      mockAxiosInstance.request.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 400, data: { error: 'Invalid parameters' } },
+      });
+      mockedAxios.isAxiosError.mockReturnValue(true);
+
+      const error = (await httpClient.get('/test').catch((e) => e)) as ZiptaxAPIError;
+      expect(error.message).toBe('Invalid parameters');
+    });
+
+    it('should use default message when no error message in response', async () => {
+      mockAxiosInstance.request.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 400, data: {} },
+      });
+      mockedAxios.isAxiosError.mockReturnValue(true);
+
+      const error = (await httpClient.get('/test').catch((e) => e)) as ZiptaxAPIError;
+      expect(error.message).toBe('API request failed with status 400');
+    });
+
+    it('should handle non-axios errors', async () => {
+      const customError = new Error('Custom error');
+      mockAxiosInstance.request.mockRejectedValue(customError);
+      mockedAxios.isAxiosError.mockReturnValue(false);
+
+      await expect(httpClient.get('/test')).rejects.toThrow('Custom error');
+    });
+
+    it('should handle non-error objects', async () => {
+      mockAxiosInstance.request.mockRejectedValue('string error');
+      mockedAxios.isAxiosError.mockReturnValue(false);
+
+      await expect(httpClient.get('/test')).rejects.toThrow('string error');
     });
   });
 });

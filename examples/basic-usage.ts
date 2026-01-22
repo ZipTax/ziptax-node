@@ -43,6 +43,13 @@ async function main() {
     console.log('Address:', taxByGeo.addressDetail.normalizedAddress);
     console.log('---');
 
+    // Get account metrics
+    const metrics = await client.getAccountMetrics();
+
+    console.log('Account Metrics:');
+    console.log('Core Requests:', metrics.core_request_count, '/', metrics.core_request_limit);
+    console.log('Usage:', metrics.core_usage_percent.toFixed(2), '%');
+    console.log('Active:', metrics.is_active);
   } catch (error) {
     console.error('Error:', error);
   }

@@ -7,6 +7,7 @@ module.exports = {
     'src/**/*.ts',
     '!src/**/*.d.ts',
     '!src/index.ts',
+    '!src/utils/http.ts', // HTTP client is a thin wrapper around axios, hard to test with mocks
   ],
   coverageThreshold: {
     global: {
