@@ -140,6 +140,108 @@ export interface V60Response {
 }
 
 /**
+ * Individual tax rate result for a postal code
+ */
+export interface V60PostalCodeResult {
+  /** Postal code */
+  geoPostalCode: string;
+  /** City name */
+  geoCity: string;
+  /** County name */
+  geoCounty: string;
+  /** State abbreviation */
+  geoState: string;
+  /** Total sales tax rate */
+  taxSales: number;
+  /** Total use tax rate */
+  taxUse: number;
+  /** Service taxability indicator */
+  txbService: 'Y' | 'N';
+  /** Freight taxability indicator */
+  txbFreight: 'Y' | 'N';
+  /** State sales tax rate */
+  stateSalesTax: number;
+  /** State use tax rate */
+  stateUseTax: number;
+  /** City sales tax rate */
+  citySalesTax: number;
+  /** City use tax rate */
+  cityUseTax: number;
+  /** City tax code */
+  cityTaxCode: string;
+  /** County sales tax rate */
+  countySalesTax: number;
+  /** County use tax rate */
+  countyUseTax: number;
+  /** County tax code */
+  countyTaxCode: string;
+  /** Total district sales tax rate */
+  districtSalesTax: number;
+  /** Total district use tax rate */
+  districtUseTax: number;
+  /** District 1 code */
+  district1Code: string;
+  /** District 1 sales tax rate */
+  district1SalesTax: number;
+  /** District 1 use tax rate */
+  district1UseTax: number;
+  /** District 2 code */
+  district2Code: string;
+  /** District 2 sales tax rate */
+  district2SalesTax: number;
+  /** District 2 use tax rate */
+  district2UseTax: number;
+  /** District 3 code */
+  district3Code: string;
+  /** District 3 sales tax rate */
+  district3SalesTax: number;
+  /** District 3 use tax rate */
+  district3UseTax: number;
+  /** District 4 code */
+  district4Code: string;
+  /** District 4 sales tax rate */
+  district4SalesTax: number;
+  /** District 4 use tax rate */
+  district4UseTax: number;
+  /** District 5 code */
+  district5Code: string;
+  /** District 5 sales tax rate */
+  district5SalesTax: number;
+  /** District 5 use tax rate */
+  district5UseTax: number;
+  /** Origin/destination indicator */
+  originDestination: 'O' | 'D';
+}
+
+/**
+ * Address detail information for postal code lookup
+ */
+export interface V60PostalCodeAddressDetail {
+  /** Normalized address (limited for postal code lookups) */
+  normalizedAddress: string;
+  /** Incorporation status (limited for postal code lookups) */
+  incorporated: string;
+  /** Geocoded latitude (0 for postal code lookups) */
+  geoLat: number;
+  /** Geocoded longitude (0 for postal code lookups) */
+  geoLng: number;
+}
+
+/**
+ * Response for v6.0 postal code lookup - legacy format
+ */
+export interface V60PostalCodeResponse {
+  /** API version */
+  version: string;
+  /** Response code (100=success) */
+  rCode: number;
+  /** Array of tax rate results for the postal code */
+  results: V60PostalCodeResult[];
+  /** Address details for postal code lookup */
+  addressDetail: V60PostalCodeAddressDetail;
+}
+
+/**
  * Account metrics by API key
  */
 export interface V60AccountMetrics {

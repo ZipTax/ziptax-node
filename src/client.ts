@@ -14,9 +14,10 @@ import {
   DEFAULT_CONFIG,
   GetSalesTaxByAddressParams,
   GetSalesTaxByGeoLocationParams,
+  GetRatesByPostalCodeParams,
   GetAccountMetricsParams,
 } from './config';
-import { V60Response, V60AccountMetrics } from './models';
+import { V60Response, V60PostalCodeResponse, V60AccountMetrics } from './models';
 
 /**
  * ZipTax API client
@@ -105,6 +106,26 @@ export class ZiptaxClient {
         lng: params.lng,
         countryCode: params.countryCode || 'USA',
         historical: params.historical,
+        format: params.format || 'json',
+      },
+    });
+  }
+
+  /**
+   * Get sales and use tax rate details from a postal code input
+   * @param params - Query parameters
+   * @returns V60PostalCodeResponse with tax rate details
+   */
+  async getRatesByPostalCode(params: GetRatesByPostalCodeParams): Promise<V60PostalCodeResponse> {
+    // Validate required parameters
+    validateRequired(params.postalcode, 'postalcode');
+    validateMaxLength(params.postalcode, 5, 'postalcode');
+    validatePattern(params.postalcode, /^[0-9]{5}$/, 'postalcode', '5-digit format');
+
+    // Make API request
+    return this.httpClient.get<V60PostalCodeResponse>('/request/v60/', {
+      params: {
+        postalcode: params.postalcode,
         format: params.format || 'json',
       },
     });
