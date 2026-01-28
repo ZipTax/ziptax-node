@@ -64,6 +64,55 @@ const mockV60Response = {
   },
 };
 
+const mockPostalCodeResponse = {
+  version: 'v60',
+  rCode: 100,
+  results: [
+    {
+      geoPostalCode: '92694',
+      geoCity: 'LADERA RANCH',
+      geoCounty: 'ORANGE',
+      geoState: 'CA',
+      taxSales: 0.0775,
+      taxUse: 0.0775,
+      txbService: 'N' as const,
+      txbFreight: 'N' as const,
+      stateSalesTax: 0.06,
+      stateUseTax: 0.06,
+      citySalesTax: 0,
+      cityUseTax: 0,
+      cityTaxCode: '',
+      countySalesTax: 0.0025,
+      countyUseTax: 0.0025,
+      countyTaxCode: '',
+      districtSalesTax: 0.015,
+      districtUseTax: 0.015,
+      district1Code: '37',
+      district1SalesTax: 0,
+      district1UseTax: 0,
+      district2Code: '37',
+      district2SalesTax: 0.005,
+      district2UseTax: 0.005,
+      district3Code: '',
+      district3SalesTax: 0,
+      district3UseTax: 0,
+      district4Code: '30',
+      district4SalesTax: 0.01,
+      district4UseTax: 0.01,
+      district5Code: '',
+      district5SalesTax: 0,
+      district5UseTax: 0,
+      originDestination: 'D' as const,
+    },
+  ],
+  addressDetail: {
+    normalizedAddress: 'feature available for geo address lookups only',
+    incorporated: 'feature available for geo address lookups only',
+    geoLat: 0,
+    geoLng: 0,
+  },
+};
+
 const mockAccountMetrics = {
   core_request_count: 15595,
   core_request_limit: 1000000,
@@ -208,6 +257,67 @@ describe('ZiptaxClient', () => {
       await expect(client.getSalesTaxByGeoLocation({ lat: '33.65253', lng: '' })).rejects.toThrow(
         ZiptaxValidationError
       );
+    });
+  });
+
+  describe('getRatesByPostalCode', () => {
+    it('should get tax rates by postal code', async () => {
+      mockHttpClient.get.mockResolvedValue(mockPostalCodeResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.getRatesByPostalCode({
+        postalcode: '92694',
+      });
+
+      expect(result).toEqual(mockPostalCodeResponse);
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60/', {
+        params: {
+          postalcode: '92694',
+          format: 'json',
+        },
+      });
+    });
+
+    it('should throw error for missing postal code', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.getRatesByPostalCode({ postalcode: '' })).rejects.toThrow(
+        ZiptaxValidationError
+      );
+    });
+
+    it('should validate postal code format (must be 5 digits)', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.getRatesByPostalCode({ postalcode: '1234' })).rejects.toThrow(
+        ZiptaxValidationError
+      );
+    });
+
+    it('should validate postal code format (must be numeric)', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.getRatesByPostalCode({ postalcode: 'ABCDE' })).rejects.toThrow(
+        ZiptaxValidationError
+      );
+    });
+
+    it('should validate postal code max length', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.getRatesByPostalCode({ postalcode: '123456' })).rejects.toThrow(
+        ZiptaxValidationError
+      );
+    });
+
+    it('should accept format parameter', async () => {
+      mockHttpClient.get.mockResolvedValue(mockPostalCodeResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await client.getRatesByPostalCode({ postalcode: '92694', format: 'xml' });
+
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60/', {
+        params: {
+          postalcode: '92694',
+          format: 'xml',
+        },
+      });
     });
   });
 

@@ -43,6 +43,17 @@ async function main() {
     console.log('Address:', taxByGeo.addressDetail.normalizedAddress);
     console.log('---');
 
+    // Get rates by postal code
+    const ratesByPostalCode = await client.getRatesByPostalCode({
+      postalcode: '92694',
+    });
+
+    console.log('Rates by Postal Code:');
+    console.log('Postal Code:', ratesByPostalCode.results[0]?.geoPostalCode);
+    console.log('Total Sales Tax:', ratesByPostalCode.results[0]?.taxSales);
+    console.log('Cities:', ratesByPostalCode.results.map((r) => r.geoCity).join(', '));
+    console.log('---');
+
     // Get account metrics
     const metrics = await client.getAccountMetrics();
 

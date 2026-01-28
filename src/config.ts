@@ -62,6 +62,16 @@ export interface GetSalesTaxByGeoLocationParams {
 }
 
 /**
+ * Query parameters for GetRatesByPostalCode
+ */
+export interface GetRatesByPostalCodeParams {
+  /** US postal code (5-digit format, e.g., 92694) */
+  postalcode: string;
+  /** Response format (default: json) */
+  format?: 'json' | 'xml';
+}
+
+/**
  * Query parameters for GetAccountMetrics
  */
 export interface GetAccountMetricsParams {

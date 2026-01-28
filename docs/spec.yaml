@@ -181,6 +181,30 @@ resources:
         returns:
           type: "V60Response"
           is_array: false
+      - name: "GetRatesByPostalCode"
+        http_method: "GET"
+        path: "/request/v60/"
+        description: "Returns sales and use tax rate details from a postal code input."
+        operation_id: "getTaxRatesV60"
+        parameters:
+          - name: "postalcode"
+            type: "string"
+            required: true
+            location: "query"
+            description: "US postal code (5-digit format, e.g., 92694)"
+            validation:
+              pattern: "^[0-9]{5}$"
+              max_length: 5
+          - name: "format"
+            type: "string"
+            required: false
+            location: "query"
+            description: "Response format"
+            default: "json"
+            enum: ["json", "xml"]
+        returns:
+          type: "V60PostalCodeResponse"
+          is_array: false
       - name: "GetAccountMetrics"
         http_method: "GET"
         path: "/account/v60/metrics"
@@ -450,6 +474,250 @@ models:
         format: "float"
         required: true
         description: "Geocoded longitude"
+  - name: "V60PostalCodeResponse"
+    description: "Response for v6.0 postal code lookup - legacy format"
+    properties:
+      - name: "version"
+        type: "string"
+        required: true
+        description: "API version"
+        example: "v60"
+      - name: "rCode"
+        type: "integer"
+        format: "int64"
+        required: true
+        description: "Response code (100=success)"
+        example: 100
+      - name: "results"
+        type: "array"
+        items_type: "V60PostalCodeResult"
+        required: true
+        description: "Array of tax rate results for the postal code"
+      - name: "addressDetail"
+        type: "V60PostalCodeAddressDetail"
+        required: true
+        description: "Address details for postal code lookup"
+
+  - name: "V60PostalCodeResult"
+    description: "Individual tax rate result for a postal code"
+    properties:
+      - name: "geoPostalCode"
+        type: "string"
+        required: true
+        description: "Postal code"
+        example: "92694"
+      - name: "geoCity"
+        type: "string"
+        required: true
+        description: "City name"
+        example: "LADERA RANCH"
+      - name: "geoCounty"
+        type: "string"
+        required: true
+        description: "County name"
+        example: "ORANGE"
+      - name: "geoState"
+        type: "string"
+        required: true
+        description: "State abbreviation"
+        example: "CA"
+      - name: "taxSales"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Total sales tax rate"
+        example: 0.0775
+      - name: "taxUse"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Total use tax rate"
+        example: 0.0775
+      - name: "txbService"
+        type: "string"
+        required: true
+        description: "Service taxability indicator"
+        enum: ["Y", "N"]
+      - name: "txbFreight"
+        type: "string"
+        required: true
+        description: "Freight taxability indicator"
+        enum: ["Y", "N"]
+      - name: "stateSalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "State sales tax rate"
+        example: 0.06
+      - name: "stateUseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "State use tax rate"
+        example: 0.06
+      - name: "citySalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "City sales tax rate"
+        example: 0
+      - name: "cityUseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "City use tax rate"
+        example: 0
+      - name: "cityTaxCode"
+        type: "string"
+        required: true
+        description: "City tax code"
+        example: ""
+      - name: "countySalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "County sales tax rate"
+        example: 0.0025
+      - name: "countyUseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "County use tax rate"
+        example: 0.0025
+      - name: "countyTaxCode"
+        type: "string"
+        required: true
+        description: "County tax code"
+        example: ""
+      - name: "districtSalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Total district sales tax rate"
+        example: 0.015
+      - name: "districtUseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Total district use tax rate"
+        example: 0.015
+      - name: "district1Code"
+        type: "string"
+        required: true
+        description: "District 1 code"
+        example: "37"
+      - name: "district1SalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 1 sales tax rate"
+        example: 0
+      - name: "district1UseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 1 use tax rate"
+        example: 0
+      - name: "district2Code"
+        type: "string"
+        required: true
+        description: "District 2 code"
+        example: "37"
+      - name: "district2SalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 2 sales tax rate"
+        example: 0.005
+      - name: "district2UseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 2 use tax rate"
+        example: 0.005
+      - name: "district3Code"
+        type: "string"
+        required: true
+        description: "District 3 code"
+        example: ""
+      - name: "district3SalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 3 sales tax rate"
+        example: 0
+      - name: "district3UseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 3 use tax rate"
+        example: 0
+      - name: "district4Code"
+        type: "string"
+        required: true
+        description: "District 4 code"
+        example: "30"
+      - name: "district4SalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 4 sales tax rate"
+        example: 0.01
+      - name: "district4UseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 4 use tax rate"
+        example: 0.01
+      - name: "district5Code"
+        type: "string"
+        required: true
+        description: "District 5 code"
+        example: ""
+      - name: "district5SalesTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 5 sales tax rate"
+        example: 0
+      - name: "district5UseTax"
+        type: "number"
+        format: "float"
+        required: true
+        description: "District 5 use tax rate"
+        example: 0
+      - name: "originDestination"
+        type: "string"
+        required: true
+        description: "Origin/destination indicator"
+        enum: ["O", "D"]
+
+  - name: "V60PostalCodeAddressDetail"
+    description: "Address detail information for postal code lookup"
+    properties:
+      - name: "normalizedAddress"
+        type: "string"
+        required: true
+        description: "Normalized address (limited for postal code lookups)"
+        example: "feature available for geo address lookups only"
+      - name: "incorporated"
+        type: "string"
+        required: true
+        description: "Incorporation status (limited for postal code lookups)"
+        example: "feature available for geo address lookups only"
+      - name: "geoLat"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Geocoded latitude (0 for postal code lookups)"
+        example: 0
+      - name: "geoLng"
+        type: "number"
+        format: "float"
+        required: true
+        description: "Geocoded longitude (0 for postal code lookups)"
+        example: 0
+
   - name: "V60AccountMetrics"
     description: "Account metrics by API key"
     properties:
@@ -852,6 +1120,95 @@ actual_api_responses:
           "incorporated": "true",
           "geoLat": 33.65253,
           "geoLng": -117.74794
+        }
+      }
+
+  v60_postal_code_lookup:
+    description: "Actual V60 response for GetRatesByPostalCode"
+    endpoint: "GET /request/v60/?postalcode=92694"
+    example: |
+      {
+        "version": "v60",
+        "rCode": 100,
+        "results": [
+          {
+            "geoPostalCode": "92694",
+            "geoCity": "LADERA RANCH",
+            "geoCounty": "ORANGE",
+            "geoState": "CA",
+            "taxSales": 0.0775,
+            "taxUse": 0.0775,
+            "txbService": "N",
+            "txbFreight": "N",
+            "stateSalesTax": 0.06,
+            "stateUseTax": 0.06,
+            "citySalesTax": 0,
+            "cityUseTax": 0,
+            "cityTaxCode": "",
+            "countySalesTax": 0.0025,
+            "countyUseTax": 0.0025,
+            "countyTaxCode": "",
+            "districtSalesTax": 0.015,
+            "districtUseTax": 0.015,
+            "district1Code": "37",
+            "district1SalesTax": 0,
+            "district1UseTax": 0,
+            "district2Code": "37",
+            "district2SalesTax": 0.005,
+            "district2UseTax": 0.005,
+            "district3Code": "",
+            "district3SalesTax": 0,
+            "district3UseTax": 0,
+            "district4Code": "30",
+            "district4SalesTax": 0.01,
+            "district4UseTax": 0.01,
+            "district5Code": "",
+            "district5SalesTax": 0,
+            "district5UseTax": 0,
+            "originDestination": "D"
+          },
+          {
+            "geoPostalCode": "92694",
+            "geoCity": "SAN JUAN CAPISTRANO",
+            "geoCounty": "ORANGE",
+            "geoState": "CA",
+            "taxSales": 0.0775,
+            "taxUse": 0.0775,
+            "txbService": "N",
+            "txbFreight": "N",
+            "stateSalesTax": 0.06,
+            "stateUseTax": 0.06,
+            "citySalesTax": 0,
+            "cityUseTax": 0,
+            "cityTaxCode": "",
+            "countySalesTax": 0.0025,
+            "countyUseTax": 0.0025,
+            "countyTaxCode": "",
+            "districtSalesTax": 0.015,
+            "districtUseTax": 0.015,
+            "district1Code": "37",
+            "district1SalesTax": 0,
+            "district1UseTax": 0,
+            "district2Code": "37",
+            "district2SalesTax": 0.005,
+            "district2UseTax": 0.005,
+            "district3Code": "",
+            "district3SalesTax": 0,
+            "district3UseTax": 0,
+            "district4Code": "30",
+            "district4SalesTax": 0.01,
+            "district4UseTax": 0.01,
+            "district5Code": "",
+            "district5SalesTax": 0,
+            "district5UseTax": 0,
+            "originDestination": "D"
+          }
+        ],
+        "addressDetail": {
+          "normalizedAddress": "feature available for geo address lookups only",
+          "incorporated": "feature available for geo address lookups only",
+          "geoLat": 0,
+          "geoLng": 0
         }
       }
 
