@@ -7,7 +7,7 @@
 # Project Metadata
 # -----------------------------------------------------------------------------
 project:
-  name: "ziptax-node"
+  name: "@ziptax/node-sdk"
   language: "typescript"
   version: "1.0.0"
   description: "Official Node.js SDK for the ZipTax API"
@@ -55,7 +55,7 @@ api:
 # -----------------------------------------------------------------------------
 sdk:
   # Package/module naming
-  package_name: "ziptax"
+  package_name: "@ziptax/node-sdk"
   namespace: "Ziptax"
 
   # SDK structure approach
