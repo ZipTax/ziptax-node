@@ -1,6 +1,6 @@
 {
   "name": "@ziptax/node-sdk",
-  "version": "0.1.0-beta",
+  "version": "0.1.1-beta",
   "description": "Official Node.js SDK for the ZipTax API",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
