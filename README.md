@@ -2,7 +2,7 @@
 
 Official Node.js SDK for the [ZipTax API](https://www.zip-tax.com/) - Get accurate sales and use tax rates for any US address.
 
-[![npm version](https://badge.fury.io/js/ziptax.svg)](https://www.npmjs.com/package/ziptax)
+[![npm version](https://badge.fury.io/js/%40ziptax%2Fnode-sdk.svg)](https://www.npmjs.com/package/@ziptax/node-sdk)
 [![Test](https://github.com/ziptax/ziptax-node/actions/workflows/test.yml/badge.svg)](https://github.com/ziptax/ziptax-node/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/ziptax/ziptax-node/branch/main/graph/badge.svg)](https://codecov.io/gh/ziptax/ziptax-node)
 
@@ -20,13 +20,13 @@ Official Node.js SDK for the [ZipTax API](https://www.zip-tax.com/) - Get accura
 ## Installation
 
 ```bash
-npm install ziptax
+npm install @ziptax/node-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { ZiptaxClient } from 'ziptax';
+import { ZiptaxClient } from '@ziptax/node-sdk';
 
 // Initialize the client with your API key
 const client = new ZiptaxClient({
@@ -144,7 +144,7 @@ import {
   ZiptaxValidationError,
   ZiptaxNetworkError,
   ZiptaxRateLimitError,
-} from 'ziptax';
+} from '@ziptax/node-sdk';
 
 try {
   const result = await client.getSalesTaxByAddress({
@@ -288,7 +288,7 @@ MIT License - see [LICENSE](./LICENSE) file for details.
 
 ## Links
 
-- [npm package](https://www.npmjs.com/package/ziptax)
+- [npm package](https://www.npmjs.com/package/@ziptax/node-sdk)
 - [GitHub repository](https://github.com/ziptax/ziptax-node)
 - [ZipTax API Documentation](https://www.zip-tax.com/documentation)
 - [Changelog](./CHANGELOG.md)
