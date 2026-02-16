@@ -1,0 +1,220 @@
+/**
+ * TaxCloud API models for order management
+ * All field names use camelCase to match TaxCloud API conventions
+ */
+
+/**
+ * TaxCloud address structure
+ */
+export interface TaxCloudAddress {
+  /** Street address line 1 */
+  line1: string;
+  /** Street address line 2 (optional) */
+  line2?: string;
+  /** City */
+  city: string;
+  /** State abbreviation (2-letter) */
+  state: string;
+  /** ZIP code */
+  zip: string;
+  /** Country code (US or CA) */
+  countryCode?: 'US' | 'CA';
+}
+
+/**
+ * TaxCloud address in response format
+ */
+export interface TaxCloudAddressResponse extends TaxCloudAddress {
+  /** Country code (always present in responses) */
+  countryCode: 'US' | 'CA';
+}
+
+/**
+ * Tax details for a line item
+ */
+export interface Tax {
+  /** Tax amount */
+  amount: number;
+  /** Tax rate (decimal format) */
+  rate: number;
+}
+
+/**
+ * Refund tax details (amount only)
+ */
+export interface RefundTax {
+  /** Tax amount for refund */
+  amount: number;
+}
+
+/**
+ * Currency information
+ */
+export interface Currency {
+  /** ISO currency code */
+  currencyCode: string;
+}
+
+/**
+ * Currency response from API
+ */
+export interface CurrencyResponse {
+  /** ISO currency code */
+  currencyCode: string;
+}
+
+/**
+ * Exemption information
+ */
+export interface Exemption {
+  /** Exemption certificate ID */
+  exemptionId: string | null;
+  /** Whether item is exempt */
+  isExempt: boolean | null;
+}
+
+/**
+ * Cart item with tax information (for creating orders)
+ */
+export interface CartItemWithTax {
+  /** Line item index */
+  index: number;
+  /** Item identifier */
+  itemId: string;
+  /** Item price */
+  price: number;
+  /** Item quantity */
+  quantity: number;
+  /** Tax information */
+  tax: Tax;
+  /** TaxCloud TIC (Taxability Information Code) */
+  tic: number;
+}
+
+/**
+ * Cart item response from API
+ */
+export interface CartItemWithTaxResponse extends CartItemWithTax {
+  /** Tax information (always present in responses) */
+  tax: Tax;
+}
+
+/**
+ * Cart item for refund request
+ */
+export interface CartItemRefundWithTaxRequest {
+  /** Item identifier */
+  itemId: string;
+  /** Quantity to refund */
+  quantity: number;
+}
+
+/**
+ * Cart item refund response from API
+ */
+export interface CartItemRefundWithTaxResponse {
+  /** Line item index */
+  index: number;
+  /** Item identifier */
+  itemId: string;
+  /** Item price */
+  price: number;
+  /** Quantity refunded */
+  quantity: number;
+  /** Tax information for refund */
+  tax: RefundTax;
+  /** TaxCloud TIC (Taxability Information Code) */
+  tic: number;
+}
+
+/**
+ * Request to create a new order
+ */
+export interface CreateOrderRequest {
+  /** Unique order identifier */
+  orderId: string;
+  /** Customer identifier */
+  customerId: string;
+  /** Transaction date (RFC3339 format) */
+  transactionDate: string;
+  /** Completed date (RFC3339 format) */
+  completedDate: string;
+  /** Origin address */
+  origin: TaxCloudAddress;
+  /** Destination address */
+  destination: TaxCloudAddress;
+  /** Line items with tax */
+  lineItems: CartItemWithTax[];
+  /** Currency information */
+  currency: Currency;
+  /** Sales channel (optional) */
+  channel?: string | null;
+  /** Whether delivered by seller (optional) */
+  deliveredBySeller?: boolean;
+  /** Whether to exclude from filing (optional) */
+  excludeFromFiling?: boolean;
+  /** Exemption information (optional) */
+  exemption?: Exemption;
+}
+
+/**
+ * Response from creating or retrieving an order
+ */
+export interface OrderResponse {
+  /** Unique order identifier */
+  orderId: string;
+  /** Customer identifier */
+  customerId: string;
+  /** TaxCloud connection ID */
+  connectionId: string;
+  /** Transaction date (RFC3339 format) */
+  transactionDate: string;
+  /** Completed date (RFC3339 format) */
+  completedDate: string;
+  /** Origin address */
+  origin: TaxCloudAddressResponse;
+  /** Destination address */
+  destination: TaxCloudAddressResponse;
+  /** Line items with tax */
+  lineItems: CartItemWithTaxResponse[];
+  /** Currency information */
+  currency: CurrencyResponse;
+  /** Sales channel */
+  channel: string | null;
+  /** Whether delivered by seller */
+  deliveredBySeller: boolean;
+  /** Whether to exclude from filing */
+  excludeFromFiling: boolean;
+  /** Exemption information */
+  exemption: Exemption;
+}
+
+/**
+ * Request to update an existing order
+ */
+export interface UpdateOrderRequest {
+  /** Updated completed date (RFC3339 format) */
+  completedDate: string;
+}
+
+/**
+ * Request to refund an order
+ */
+export interface RefundTransactionRequest {
+  /** Items to refund */
+  items: CartItemRefundWithTaxRequest[];
+}
+
+/**
+ * Response from refund operation
+ */
+export interface RefundTransactionResponse {
+  /** TaxCloud connection ID */
+  connectionId: string;
+  /** When refund was created (RFC3339 format) */
+  createdDate: string;
+  /** Refunded items with tax details */
+  items: CartItemRefundWithTaxResponse[];
+  /** When items were returned (RFC3339 format) */
+  returnedDate: string;
+}

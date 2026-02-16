@@ -1,0 +1,286 @@
+name: Version Check
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-version-bump:
+    name: Check Version Bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Checkout base branch
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Get version from PR branch
+        id: pr-version
+        run: |
+          PR_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$PR_VERSION" >> $GITHUB_OUTPUT
+          echo "PR branch version: $PR_VERSION"
+
+      - name: Get version from base branch
+        id: base-version
+        run: |
+          git checkout origin/${{ github.event.pull_request.base.ref }} -- package.json
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Base branch version: $BASE_VERSION"
+          git checkout HEAD -- package.json
+
+      - name: Check for skip-version-check label
+        id: check-skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-version-check') }}" == "true" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Version check skipped due to 'skip-version-check' label"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate semantic version bump
+        if: steps.check-skip.outputs.skip == 'false'
+        id: validate
+        run: |
+          PR_VERSION="${{ steps.pr-version.outputs.version }}"
+          BASE_VERSION="${{ steps.base-version.outputs.version }}"
+
+          echo "Comparing versions:"
+          echo "  Base: $BASE_VERSION"
+          echo "  PR:   $PR_VERSION"
+
+          # Skip check if versions are identical (allow for documentation-only changes with label)
+          if [[ "$PR_VERSION" == "$BASE_VERSION" ]]; then
+            echo "❌ Version not bumped!"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "message=Version in package.json ($PR_VERSION) has not been bumped from base branch ($BASE_VERSION). Please update the version following semantic versioning." >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          # Use npm to compare versions
+          npx semver $PR_VERSION -r ">$BASE_VERSION" > /dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            echo "✅ Version successfully bumped from $BASE_VERSION to $PR_VERSION"
+            echo "status=success" >> $GITHUB_OUTPUT
+
+            # Determine bump type
+            MAJOR_BASE=$(echo $BASE_VERSION | cut -d. -f1)
+            MINOR_BASE=$(echo $BASE_VERSION | cut -d. -f2)
+            PATCH_BASE=$(echo $BASE_VERSION | cut -d. -f3 | cut -d- -f1)
+
+            MAJOR_PR=$(echo $PR_VERSION | cut -d. -f1)
+            MINOR_PR=$(echo $PR_VERSION | cut -d. -f2)
+            PATCH_PR=$(echo $PR_VERSION | cut -d. -f3 | cut -d- -f1)
+
+            if [ "$MAJOR_PR" -gt "$MAJOR_BASE" ]; then
+              BUMP_TYPE="major"
+            elif [ "$MINOR_PR" -gt "$MINOR_BASE" ]; then
+              BUMP_TYPE="minor"
+            elif [ "$PATCH_PR" -gt "$PATCH_BASE" ]; then
+              BUMP_TYPE="patch"
+            else
+              BUMP_TYPE="prerelease"
+            fi
+
+            echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+            echo "message=Version bumped from $BASE_VERSION to $PR_VERSION (${BUMP_TYPE} bump)" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Invalid version bump!"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "message=Version $PR_VERSION is not greater than base version $BASE_VERSION. Please ensure you're following semantic versioning." >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Check CHANGELOG update
+        if: steps.check-skip.outputs.skip == 'false'
+        id: changelog
+        run: |
+          git diff origin/${{ github.event.pull_request.base.ref }} HEAD -- CHANGELOG.md > /dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            if git diff origin/${{ github.event.pull_request.base.ref }} HEAD -- CHANGELOG.md | grep -q "^+"; then
+              echo "✅ CHANGELOG.md has been updated"
+              echo "updated=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ CHANGELOG.md not updated"
+              echo "updated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ CHANGELOG.md not updated"
+            echo "updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post success comment
+        if: steps.validate.outputs.status == 'success' && steps.check-skip.outputs.skip == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const bumpType = '${{ steps.validate.outputs.bump_type }}';
+            const prVersion = '${{ steps.pr-version.outputs.version }}';
+            const baseVersion = '${{ steps.base-version.outputs.version }}';
+            const changelogUpdated = '${{ steps.changelog.outputs.updated }}' === 'true';
+
+            const bumpEmoji = {
+              major: '🚀',
+              minor: '✨',
+              patch: '🐛',
+              prerelease: '🧪'
+            };
+
+            let body = `## ${bumpEmoji[bumpType]} Version Check Passed\n\n`;
+            body += `✅ Version successfully bumped from \`${baseVersion}\` to \`${prVersion}\`\n`;
+            body += `📦 Bump type: **${bumpType}**\n\n`;
+
+            if (changelogUpdated) {
+              body += `✅ CHANGELOG.md has been updated\n\n`;
+            } else {
+              body += `⚠️ **Warning**: CHANGELOG.md does not appear to be updated. `;
+              body += `Please ensure you've documented your changes.\n\n`;
+            }
+
+            body += `### Semantic Versioning Guide\n`;
+            body += `- **Major** (X.0.0): Breaking changes\n`;
+            body += `- **Minor** (0.X.0): New features (backward compatible)\n`;
+            body += `- **Patch** (0.0.X): Bug fixes (backward compatible)\n`;
+
+            // Find existing bot comments
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Version Check')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Post failure comment
+        if: failure() && steps.check-skip.outputs.skip == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prVersion = '${{ steps.pr-version.outputs.version }}';
+            const baseVersion = '${{ steps.base-version.outputs.version }}';
+
+            let body = `## ❌ Version Check Failed\n\n`;
+            body += `The version in \`package.json\` has not been properly updated.\n\n`;
+            body += `- **Base branch version**: \`${baseVersion}\`\n`;
+            body += `- **PR branch version**: \`${prVersion}\`\n\n`;
+            body += `### Required Actions\n\n`;
+            body += `Please update the version in \`package.json\` following [Semantic Versioning](https://semver.org/):\n\n`;
+            body += `\`\`\`bash\n`;
+            body += `# For breaking changes (major)\n`;
+            body += `npm version major\n\n`;
+            body += `# For new features (minor)\n`;
+            body += `npm version minor\n\n`;
+            body += `# For bug fixes (patch)\n`;
+            body += `npm version patch\n\n`;
+            body += `# For prerelease versions\n`;
+            body += `npm version prerelease --preid=beta\n`;
+            body += `\`\`\`\n\n`;
+            body += `### Update CHANGELOG.md\n\n`;
+            body += `Don't forget to document your changes in \`CHANGELOG.md\` under the \`[Unreleased]\` section.\n\n`;
+            body += `---\n\n`;
+            body += `💡 **Tip**: If this is a documentation-only change or you have a valid reason to skip version checking, `;
+            body += `add the \`skip-version-check\` label to this PR.\n`;
+
+            // Find existing bot comments
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Version Check')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Post skip notice comment
+        if: steps.check-skip.outputs.skip == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `## ⚠️ Version Check Skipped\n\n` +
+              `The version check has been skipped due to the \`skip-version-check\` label.\n\n` +
+              `This should only be used for:\n` +
+              `- Documentation-only changes\n` +
+              `- CI/CD configuration updates\n` +
+              `- Repository maintenance tasks\n\n` +
+              `If this PR includes code changes, please remove the label and bump the version appropriately.`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Version Check')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }

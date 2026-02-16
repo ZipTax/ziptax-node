@@ -1,6 +1,6 @@
-# ZipTax Node.js SDK
+# Ziptax Node.js SDK
 
-Official Node.js SDK for the [ZipTax API](https://www.zip-tax.com/) - Get accurate sales and use tax rates for any US address.
+Official Node.js SDK for the [Ziptax API](https://www.zip-tax.com/) - Get accurate sales and use tax rates for any US address.
 
 [![npm version](https://badge.fury.io/js/%40ziptax%2Fnode-sdk.svg)](https://www.npmjs.com/package/@ziptax/node-sdk)
 [![Test](https://github.com/ziptax/ziptax-node/actions/workflows/test.yml/badge.svg)](https://github.com/ziptax/ziptax-node/actions/workflows/test.yml)
@@ -16,6 +16,7 @@ Official Node.js SDK for the [ZipTax API](https://www.zip-tax.com/) - Get accura
 - ✅ Support for both CommonJS and ES Modules
 - ✅ Zero runtime dependencies (except axios)
 - ✅ 80%+ test coverage
+- ✅ TaxCloud order management integration (optional)
 
 ## Installation
 
@@ -46,6 +47,8 @@ console.log('Base Rates:', result.baseRates);
 
 ### Client Initialization
 
+#### Basic Initialization (Tax Rate Lookups Only)
+
 ```typescript
 const client = new ZiptaxClient({
   apiKey: 'your-api-key-here',
@@ -60,6 +63,19 @@ const client = new ZiptaxClient({
   },
 });
 ```
+
+#### With TaxCloud Order Management (Optional)
+
+```typescript
+const client = new ZiptaxClient({
+  apiKey: 'your-ziptax-api-key-here',
+  taxCloudConnectionId: '25eb9b97-5acb-492d-b720-c03e79cf715a', // Optional: TaxCloud Connection ID (UUID)
+  taxCloudAPIKey: 'your-taxcloud-api-key-here', // Optional: TaxCloud API Key
+  // ... other options
+});
+```
+
+**Note:** TaxCloud order management features are optional and only available when both `taxCloudConnectionId` and `taxCloudAPIKey` are provided during client initialization.
 
 ### Get Sales Tax by Address
 
@@ -89,6 +105,17 @@ const result = await client.getSalesTaxByGeoLocation({
 });
 ```
 
+### Get Sales Tax by Postal Code
+
+Returns sales and use tax rate details from a postal code input.
+
+```typescript
+const result = await client.getRatesByPostalCode({
+  postalcode: '92694', // Required: 5-digit US postal code
+  format?: 'json', // Optional: 'json' or 'xml' (default: 'json')
+});
+```
+
 ### Get Account Metrics
 
 Returns account metrics and usage information.
@@ -100,9 +127,94 @@ console.log('Requests:', metrics.core_request_count, '/', metrics.core_request_l
 console.log('Usage:', metrics.core_usage_percent.toFixed(2), '%');
 ```
 
+## TaxCloud Order Management (Optional)
+
+The SDK includes optional TaxCloud integration for order management operations. These features require TaxCloud credentials to be configured during client initialization.
+
+### Create Order
+
+Create orders from marketplace transactions, pre-existing systems, or bulk uploads.
+
+```typescript
+const orderResponse = await client.createOrder({
+  orderId: 'my-order-1',
+  customerId: 'customer-453',
+  transactionDate: '2024-01-15T09:30:00Z',
+  completedDate: '2024-01-15T09:30:00Z',
+  origin: {
+    line1: '323 Washington Ave N',
+    city: 'Minneapolis',
+    state: 'MN',
+    zip: '55401-2427',
+  },
+  destination: {
+    line1: '323 Washington Ave N',
+    city: 'Minneapolis',
+    state: 'MN',
+    zip: '55401-2427',
+  },
+  lineItems: [
+    {
+      index: 0,
+      itemId: 'item-1',
+      price: 10.8,
+      quantity: 1.5,
+      tax: { amount: 1.31, rate: 0.0813 },
+      tic: 0,
+    },
+  ],
+  currency: { currencyCode: 'USD' },
+});
+```
+
+### Get Order
+
+Retrieve a specific order by its ID from TaxCloud.
+
+```typescript
+const order = await client.getOrder('my-order-1');
+
+console.log('Order ID:', order.orderId);
+console.log('Customer:', order.customerId);
+console.log('Total Tax:', order.lineItems.reduce((sum, item) => sum + item.tax.amount, 0));
+```
+
+### Update Order
+
+Update an existing order's completedDate in TaxCloud.
+
+```typescript
+const updatedOrder = await client.updateOrder('my-order-1', {
+  completedDate: '2024-01-16T10:00:00Z',
+});
+```
+
+### Refund Order
+
+Create a refund against an order in TaxCloud. An order can only be refunded once, regardless of whether the order is partially or fully refunded.
+
+```typescript
+// Partial refund (specific items)
+const refunds = await client.refundOrder('my-order-1', {
+  items: [
+    {
+      itemId: 'item-1',
+      quantity: 1.0,
+    },
+  ],
+});
+
+// Full refund (empty items array)
+const fullRefunds = await client.refundOrder('my-order-1', {
+  items: [],
+});
+```
+
 ## Response Types
 
 All methods return fully typed responses:
+
+### ZipTax API Response Types
 
 ```typescript
 interface V60Response {
@@ -113,6 +225,13 @@ interface V60Response {
   sourcingRules?: V60SourcingRules;
   taxSummaries?: V60TaxSummary[];
   addressDetail: V60AddressDetail;
+}
+
+interface V60PostalCodeResponse {
+  version: string;
+  rCode: number;
+  results: V60PostalCodeResult[];
+  addressDetail: V60PostalCodeAddressDetail;
 }
 
 interface V60AccountMetrics {
@@ -128,7 +247,34 @@ interface V60AccountMetrics {
 }
 ```
 
-See the [full type definitions](./src/models/responses.ts) for complete details.
+### TaxCloud API Response Types
+
+```typescript
+interface OrderResponse {
+  orderId: string;
+  customerId: string;
+  connectionId: string;
+  transactionDate: string;
+  completedDate: string;
+  origin: TaxCloudAddressResponse;
+  destination: TaxCloudAddressResponse;
+  lineItems: CartItemWithTaxResponse[];
+  currency: CurrencyResponse;
+  channel: string;
+  deliveredBySeller: boolean;
+  excludeFromFiling: boolean;
+  exemption: Exemption;
+}
+
+interface RefundTransactionResponse {
+  connectionId: string;
+  createdDate: string;
+  items: CartItemRefundWithTaxResponse[];
+  returnedDate?: string;
+}
+```
+
+See the [full type definitions](./src/models/) for complete details.
 
 **Note:** Most API responses use camelCase field names (e.g., `baseRates`, `taxSummaries`), but account metrics use snake_case (e.g., `core_request_count`, `geo_enabled`).
 
@@ -169,6 +315,26 @@ try {
 }
 ```
 
+### TaxCloud Error Handling
+
+When using TaxCloud features, errors will be thrown if the credentials are not configured:
+
+```typescript
+try {
+  const order = await client.createOrder({
+    orderId: 'my-order-1',
+    // ... order details
+  });
+} catch (error) {
+  if (error.message.includes('TaxCloud credentials not configured')) {
+    console.error('Please provide taxCloudConnectionId and taxCloudAPIKey during client initialization');
+  } else {
+    // Handle other errors
+    console.error('Error creating order:', error);
+  }
+}
+```
+
 ## Advanced Usage
 
 ### Concurrent Requests
@@ -183,6 +349,30 @@ const addresses = [
 const results = await Promise.all(
   addresses.map((address) => client.getSalesTaxByAddress({ address }))
 );
+```
+
+### Working with Multiple Orders
+
+```typescript
+// Create multiple orders concurrently
+const orders = [
+  {
+    orderId: 'order-1',
+    customerId: 'customer-1',
+    // ... order details
+  },
+  {
+    orderId: 'order-2',
+    customerId: 'customer-2',
+    // ... order details
+  },
+];
+
+const createdOrders = await Promise.all(
+  orders.map((order) => client.createOrder(order))
+);
+
+console.log(`Created ${createdOrders.length} orders`);
 ```
 
 ### Custom Retry Configuration
@@ -216,13 +406,14 @@ const client = new ZiptaxClient({
 
 See the [examples](./examples) directory for more usage examples:
 
-- [Basic Usage](./examples/basic-usage.ts)
-- [Async Operations](./examples/async-usage.ts)
-- [Error Handling](./examples/error-handling.ts)
+- [Basic Usage](./examples/basic-usage.ts) - ZipTax tax rate lookups
+- [Async Operations](./examples/async-usage.ts) - Concurrent requests
+- [Error Handling](./examples/error-handling.ts) - Error handling patterns
+- [TaxCloud Orders](./examples/taxcloud-orders.ts) - TaxCloud order management
 
 ### Running Examples
 
-All examples require a valid ZipTax API key set as an environment variable:
+Basic examples require a valid ZipTax API key:
 
 ```bash
 # Run basic usage example
@@ -235,11 +426,23 @@ ZIPTAX_API_KEY=your-api-key npm run example:async
 ZIPTAX_API_KEY=your-api-key npm run example:errors
 ```
 
-Or export the environment variable first:
+TaxCloud example requires both ZipTax and TaxCloud credentials:
+
+```bash
+# Run TaxCloud order management example
+ZIPTAX_API_KEY=your-api-key \
+TAXCLOUD_CONNECTION_ID=your-connection-id \
+TAXCLOUD_API_KEY=your-taxcloud-key \
+npm run example:taxcloud
+```
+
+Or export the environment variables first:
 
 ```bash
 export ZIPTAX_API_KEY=your-api-key
-npm run example:basic
+export TAXCLOUD_CONNECTION_ID=your-connection-id
+export TAXCLOUD_API_KEY=your-taxcloud-key
+npm run example:taxcloud
 ```
 
 ## Requirements

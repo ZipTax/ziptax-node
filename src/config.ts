@@ -18,6 +18,10 @@ export interface ZiptaxConfig {
   retryOptions?: RetryOptions;
   /** Enable request/response logging (default: false) */
   enableLogging?: boolean;
+  /** TaxCloud Connection ID (UUID format) - required for TaxCloud order management */
+  taxCloudConnectionId?: string;
+  /** TaxCloud API Key - required for TaxCloud order management */
+  taxCloudAPIKey?: string;
 }
 
 /**

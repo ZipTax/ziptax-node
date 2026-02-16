@@ -34,6 +34,7 @@
     "example:basic": "tsx examples/basic-usage.ts",
     "example:async": "tsx examples/async-usage.ts",
     "example:errors": "tsx examples/error-handling.ts",
+    "example:taxcloud": "tsx examples/taxcloud-orders.ts",
     "prepublishOnly": "npm run build && npm run test && npm run lint && npm run type-check"
   },
   "keywords": [

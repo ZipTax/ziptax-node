@@ -24,6 +24,19 @@ export interface HTTPClientConfig {
   enableLogging?: boolean;
 }
 
+export interface TaxCloudHTTPClientConfig {
+  /** Base URL for TaxCloud API requests */
+  baseURL: string;
+  /** TaxCloud API key for authentication */
+  apiKey: string;
+  /** Request timeout in milliseconds */
+  timeout?: number;
+  /** Retry configuration */
+  retryOptions?: RetryOptions;
+  /** Enable request/response logging */
+  enableLogging?: boolean;
+}
+
 /**
  * HTTP client for making API requests
  */
@@ -92,6 +105,13 @@ export class HTTPClient {
    */
   async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
     return this.request<T>({ ...config, method: 'POST', url, data });
+  }
+
+  /**
+   * Make a PATCH request
+   */
+  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return this.request<T>({ ...config, method: 'PATCH', url, data });
   }
 
   /**
