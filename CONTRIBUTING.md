@@ -103,16 +103,16 @@ The project enforces semantic versioning via GitHub Actions. Your PR will fail i
 Use npm's built-in version command:
 
 ```bash
-# For breaking changes (1.0.0 → 2.0.0)
+# For breaking changes (0.2.0-beta → 1.0.0)
 npm version major
 
-# For new features, backward compatible (1.0.0 → 1.1.0)
+# For new features, backward compatible (0.2.0-beta → 0.3.0-beta)
 npm version minor
 
-# For bug fixes, backward compatible (1.0.0 → 1.0.1)
+# For bug fixes, backward compatible (0.2.0-beta → 0.2.1-beta)
 npm version patch
 
-# For prerelease versions (1.0.0 → 1.0.1-beta.0)
+# For prerelease versions (0.2.0 → 0.2.1-beta.0)
 npm version prerelease --preid=beta
 ```
 
@@ -131,7 +131,7 @@ After bumping the version, update `CHANGELOG.md`:
 
 Example:
 ```markdown
-## [Unreleased]
+## [0.3.0-beta] - 2026-03-01
 
 ### Added
 - New method `getOrder()` for retrieving TaxCloud orders
@@ -210,10 +210,10 @@ Use conventional commit format:
 
 | Change Type | Version Bump | Example |
 |-------------|--------------|---------|
-| Breaking changes, incompatible API changes | **Major** (x.0.0) | Removing methods, changing signatures |
-| New features, backward compatible | **Minor** (0.x.0) | Adding new methods, optional parameters |
-| Bug fixes, backward compatible | **Patch** (0.0.x) | Fixing bugs, performance improvements |
-| Pre-release versions | **Prerelease** (0.0.0-beta.x) | Beta/RC versions |
+| Breaking changes, incompatible API changes | **Major** (x.0.0) | Removing methods, changing signatures (e.g., 0.2.0-beta -> 1.0.0) |
+| New features, backward compatible | **Minor** (0.x.0) | Adding new methods, optional parameters (e.g., 0.2.0-beta -> 0.3.0-beta) |
+| Bug fixes, backward compatible | **Patch** (0.0.x) | Fixing bugs, performance improvements (e.g., 0.2.0-beta -> 0.2.1-beta) |
+| Pre-release versions | **Prerelease** (0.0.0-beta.x) | Beta/RC versions (e.g., 0.2.0 -> 0.2.1-beta.0) |
 
 ## Coding Standards
 

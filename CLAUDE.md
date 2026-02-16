@@ -115,16 +115,16 @@ The `version-check` GitHub Action automatically validates:
 **Before creating a PR:**
 
 ```bash
-# Breaking changes (1.0.0 → 2.0.0)
+# Breaking changes (0.2.0-beta → 1.0.0)
 npm version major
 
-# New features, backward compatible (1.0.0 → 1.1.0)
+# New features, backward compatible (0.2.0-beta → 0.3.0-beta)
 npm version minor
 
-# Bug fixes, backward compatible (1.0.0 → 1.0.1)
+# Bug fixes, backward compatible (0.2.0-beta → 0.2.1-beta)
 npm version patch
 
-# Prerelease versions (1.0.0 → 1.0.1-beta.0)
+# Prerelease versions (0.2.0 → 0.2.1-beta.0)
 npm version prerelease --preid=beta
 
 # Then update CHANGELOG.md and commit
@@ -177,17 +177,18 @@ npm run test           # Verify tests pass
 
 1. Ensure version is bumped and CHANGELOG.md is updated
 2. Merge PR to `main` (after passing all checks)
-3. Create a GitHub Release with version tag (e.g., `v1.2.3`)
+3. Create a GitHub Release with version tag (e.g., `v0.2.0-beta`)
 4. Publish workflow automatically runs and publishes to npm
+5. Prerelease versions (e.g., `-beta`) are published under the `beta` dist-tag, not `latest`
 
 **Manual publishing (if needed):**
 
-1. Update version: `npm version [major|minor|patch]`
-2. Move "[Unreleased]" changes to new version in `CHANGELOG.md`
+1. Update version: `npm version [major|minor|patch|prerelease --preid=beta]`
+2. Move changes to new version section in `CHANGELOG.md`
 3. Run `npm run prepublishOnly` (builds, tests, lints)
-4. Create git tag: `git tag v1.x.x`
+4. Create git tag: `git tag v0.x.x-beta`
 5. Push with tags: `git push origin main --tags`
-6. Publish: `npm publish --access public`
+6. Publish: `npm publish --access public` (or `npm publish --access public --tag beta` for prereleases)
 
 ## Testing Strategy
 
@@ -195,10 +196,13 @@ npm run test           # Verify tests pass
 
 ```
 tests/
-├── client.test.ts     # Client method tests
-├── http.test.ts       # HTTPClient tests
-├── retry.test.ts      # Retry logic tests
-└── setup.ts           # Test configuration
+├── client.test.ts            # ZipTax client method tests (address, geo, postal code, metrics)
+├── taxcloud-orders.test.ts   # TaxCloud order management tests (CRUD + refunds)
+├── http.test.ts              # HTTPClient tests (requests, error handling, response body checks)
+├── validation.test.ts        # Input validation utility tests
+├── exceptions.test.ts        # Custom error class tests
+├── retry.test.ts             # Retry logic tests (backoff, max attempts)
+└── setup.ts                  # Test configuration
 ```
 
 ### Mocking Strategy
@@ -271,7 +275,9 @@ const client = new ZiptaxClient({
 1. **TaxCloud not configured**: Check both `taxCloudConnectionId` and `taxCloudAPIKey` are set
 2. **Type errors**: Ensure types match API responses (check docs/spec.yaml)
 3. **Rate limiting**: SDK includes automatic retry with backoff
-4. **Validation errors**: Check required fields and formats (e.g., postal code is 5-digit)
+4. **Validation errors**: Check required fields and formats (e.g., postal code is 5-digit, historical date is YYYYMM)
+5. **Historical date format**: Must be `YYYYMM` (e.g., `202401`), not `YYYY-MM`
+6. **Account metrics fields**: Use snake_case (`request_count`, `usage_percent`), not the deprecated `core_` prefixed fields
 
 ## Best Practices
 
@@ -310,7 +316,7 @@ Example: `feat: add support for TaxCloud order refunds`
 
 **Important**: Commit both version bump and changelog update:
 ```bash
-npm version minor  # Bumps version and creates commit
+npm version minor  # e.g., 0.2.0-beta → 0.3.0-beta (bumps version and creates commit)
 git add CHANGELOG.md
 git commit --amend --no-edit  # Add CHANGELOG to version commit
 ```
@@ -319,10 +325,13 @@ git commit --amend --no-edit  # Add CHANGELOG to version commit
 
 ### HTTP Client
 
-- Two instances: one for ZipTax, one for TaxCloud (if configured)
+- Two instances: one for ZipTax API, one for TaxCloud API (if configured)
 - Automatic retry with exponential backoff
 - Custom error handling based on HTTP status codes
-- Optional request/response logging
+- Response-body error checking: API returns HTTP 200 with error codes (e.g., code 101 = invalid key throws `ZiptaxAuthenticationError`)
+- Dynamic User-Agent header using `npm_package_version` environment variable
+- Optional request/response logging via interceptors
+- Supports GET, POST, and PATCH methods
 
 ### Validation
 

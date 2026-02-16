@@ -41,16 +41,16 @@ The workflow will:
 **Before creating a PR**, bump the version appropriately:
 
 ```bash
-# Breaking changes (1.0.0 → 2.0.0)
+# Breaking changes (0.2.0-beta → 1.0.0)
 npm version major
 
-# New features, backward compatible (1.0.0 → 1.1.0)
+# New features, backward compatible (0.2.0-beta → 0.3.0-beta)
 npm version minor
 
-# Bug fixes, backward compatible (1.0.0 → 1.0.1)
+# Bug fixes, backward compatible (0.2.0-beta → 0.2.1-beta)
 npm version patch
 
-# Prerelease versions (1.0.0 → 1.0.1-beta.0)
+# Prerelease versions (0.2.0 → 0.2.1-beta.0)
 npm version prerelease --preid=beta
 ```
 
@@ -76,9 +76,10 @@ Publishes package to npm:
 
 #### Manual Publishing
 
-1. Create a release on GitHub with a version tag (e.g., `v1.2.3`)
+1. Create a release on GitHub with a version tag (e.g., `v0.2.0-beta`)
 2. Workflow automatically publishes to npm
-3. Or trigger manually via Actions tab with a specific tag
+3. Prerelease versions (e.g., `-beta`) are published under the `beta` dist-tag, not `latest`
+4. Or trigger manually via Actions tab with a specific tag
 
 **Required Secret**: `NPM_TOKEN` must be configured in repository secrets
 
@@ -135,16 +136,16 @@ Add these badges to your README.md:
 Following [SemVer](https://semver.org/):
 
 - **Major (X.0.0)**: Breaking changes, incompatible API changes
-  - Example: Removing a public method, changing return types
+  - Example: Removing a public method, changing return types (0.2.0-beta -> 1.0.0)
 
 - **Minor (0.X.0)**: New features, backward compatible
-  - Example: Adding new methods, new optional parameters
+  - Example: Adding new methods, new optional parameters (0.2.0-beta -> 0.3.0-beta)
 
 - **Patch (0.0.X)**: Bug fixes, backward compatible
-  - Example: Fixing bugs, typos, performance improvements
+  - Example: Fixing bugs, typos, performance improvements (0.2.0-beta -> 0.2.1-beta)
 
 - **Prerelease (0.0.0-beta.X)**: Pre-production versions
-  - Example: Beta releases, release candidates
+  - Example: Beta releases, release candidates (0.2.0 -> 0.2.1-beta.0)
 
 ## Contributing
 
