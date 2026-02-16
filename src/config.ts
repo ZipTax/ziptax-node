@@ -43,7 +43,7 @@ export interface GetSalesTaxByAddressParams {
   taxabilityCode?: string;
   /** Country code (default: USA) */
   countryCode?: 'USA' | 'CAN';
-  /** Historical date for rates (YYYY-MM format) */
+  /** Historical date for rates (YYYYMM format, e.g., '202401') */
   historical?: string;
   /** Response format (default: json) */
   format?: 'json' | 'xml';
@@ -59,7 +59,7 @@ export interface GetSalesTaxByGeoLocationParams {
   lng: string;
   /** Country code (default: USA) */
   countryCode?: 'USA' | 'CAN';
-  /** Historical date for rates (YYYY-MM format) */
+  /** Historical date for rates (YYYYMM format, e.g., '202401') */
   historical?: string;
   /** Response format (default: json) */
   format?: 'json' | 'xml';

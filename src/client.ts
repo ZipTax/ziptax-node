@@ -91,7 +91,7 @@ export class ZiptaxClient {
     }
 
     if (params.historical) {
-      validatePattern(params.historical, /^[0-9]{4}-[0-9]{2}$/, 'historical', 'YYYY-MM format');
+      validatePattern(params.historical, /^[0-9]{6}$/, 'historical', 'YYYYMM format');
     }
 
     // Make API request
@@ -120,7 +120,7 @@ export class ZiptaxClient {
 
     // Validate optional parameters
     if (params.historical) {
-      validatePattern(params.historical, /^[0-9]{4}-[0-9]{2}$/, 'historical', 'YYYY-MM format');
+      validatePattern(params.historical, /^[0-9]{6}$/, 'historical', 'YYYYMM format');
     }
 
     // Make API request

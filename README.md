@@ -86,7 +86,7 @@ const result = await client.getSalesTaxByAddress({
   address: '200 Spectrum Center Drive, Irvine, CA 92618',
   taxabilityCode?: '12345', // Optional: Product/service taxability code
   countryCode?: 'USA', // Optional: 'USA' or 'CAN' (default: 'USA')
-  historical?: '2024-01', // Optional: Historical date (YYYY-MM format)
+  historical?: '202401', // Optional: Historical date (YYYYMM format)
   format?: 'json', // Optional: 'json' or 'xml' (default: 'json')
 });
 ```
@@ -100,7 +100,7 @@ const result = await client.getSalesTaxByGeoLocation({
   lat: '33.65253',
   lng: '-117.74794',
   countryCode?: 'USA', // Optional: 'USA' or 'CAN' (default: 'USA')
-  historical?: '2024-01', // Optional: Historical date (YYYY-MM format)
+  historical?: '202401', // Optional: Historical date (YYYYMM format)
   format?: 'json', // Optional: 'json' or 'xml' (default: 'json')
 });
 ```
