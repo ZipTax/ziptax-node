@@ -3,6 +3,7 @@
  */
 
 import { HTTPClient } from './utils/http';
+import { ZiptaxConfigurationError } from './exceptions';
 import {
   validateApiKey,
   validateRequired,
@@ -34,7 +35,9 @@ import {
 export class ZiptaxClient {
   private readonly httpClient: HTTPClient;
   private readonly taxCloudHttpClient?: HTTPClient;
-  private readonly config: Required<Omit<ZiptaxConfig, 'retryOptions' | 'taxCloudConnectionId' | 'taxCloudAPIKey'>> &
+  private readonly config: Required<
+    Omit<ZiptaxConfig, 'retryOptions' | 'taxCloudConnectionId' | 'taxCloudAPIKey'>
+  > &
     Pick<ZiptaxConfig, 'retryOptions' | 'taxCloudConnectionId' | 'taxCloudAPIKey'>;
 
   /**
@@ -165,11 +168,11 @@ export class ZiptaxClient {
 
   /**
    * Verify TaxCloud credentials are configured
-   * @throws Error if TaxCloud credentials are not configured
+   * @throws ZiptaxConfigurationError if TaxCloud credentials are not configured
    */
   private verifyTaxCloudCredentials(): void {
     if (!this.taxCloudHttpClient || !this.config.taxCloudConnectionId) {
-      throw new Error(
+      throw new ZiptaxConfigurationError(
         'TaxCloud credentials not configured. Please provide taxCloudConnectionId and taxCloudAPIKey in the client configuration.'
       );
     }
@@ -237,21 +240,20 @@ export class ZiptaxClient {
    * @param request - Refund request with items to refund
    * @returns Array of RefundTransactionResponse
    */
-  async refundOrder(orderId: string, request: RefundTransactionRequest): Promise<RefundTransactionResponse[]> {
+  async refundOrder(
+    orderId: string,
+    request?: RefundTransactionRequest
+  ): Promise<RefundTransactionResponse[]> {
     this.verifyTaxCloudCredentials();
 
     // Validate required fields
     validateRequired(orderId, 'orderId');
-    validateRequired(request.items, 'items');
-
-    if (!Array.isArray(request.items) || request.items.length === 0) {
-      throw new Error('Refund request must include at least one item');
-    }
 
     const connectionId = this.config.taxCloudConnectionId!;
     const path = `/tax/connections/${connectionId}/orders/refunds/${orderId}`;
 
-    return this.taxCloudHttpClient!.post<RefundTransactionResponse[]>(path, request);
+    // Empty or omitted items means full refund per TaxCloud API spec
+    return this.taxCloudHttpClient!.post<RefundTransactionResponse[]>(path, request || {});
   }
 
   /**

@@ -58,8 +58,8 @@ async function main() {
     const metrics = await client.getAccountMetrics();
 
     console.log('Account Metrics:');
-    console.log('Core Requests:', metrics.core_request_count, '/', metrics.core_request_limit);
-    console.log('Usage:', metrics.core_usage_percent.toFixed(2), '%');
+    console.log('Requests:', metrics.request_count, '/', metrics.request_limit);
+    console.log('Usage:', metrics.usage_percent.toFixed(2), '%');
     console.log('Active:', metrics.is_active);
   } catch (error) {
     console.error('Error:', error);

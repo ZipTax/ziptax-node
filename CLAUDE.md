@@ -78,7 +78,7 @@ const client = new ZiptaxClient({
 ### Important Type Conventions
 
 1. **ZipTax Responses**: Use camelCase (e.g., `baseRates`, `taxSummaries`)
-2. **Account Metrics**: Use snake_case (e.g., `core_request_count`)
+2. **Account Metrics**: Use snake_case (e.g., `request_count`, `usage_percent`)
 3. **Optional Fields**: Many fields are optional despite API documentation
 4. **Jurisdiction Names**: Use actual values like "CA", "ORANGE" (not enums)
 
@@ -224,16 +224,18 @@ npm run test:coverage                   # With coverage
 ZiptaxError (base)
 ├── ZiptaxAPIError (API errors)
 │   ├── ZiptaxAuthenticationError (401)
-│   ├── ZiptaxValidationError (400)
 │   └── ZiptaxRateLimitError (429)
-└── ZiptaxNetworkError (network failures)
+├── ZiptaxValidationError (input validation)
+├── ZiptaxNetworkError (network failures)
+├── ZiptaxRetryError (max retries exceeded)
+└── ZiptaxConfigurationError (invalid config)
 ```
 
 ### TaxCloud Credentials Error
 
 When TaxCloud methods called without credentials:
 ```
-Error: TaxCloud credentials not configured. Please provide...
+ZiptaxConfigurationError: TaxCloud credentials not configured. Please provide...
 ```
 
 ## Important Files
@@ -343,8 +345,8 @@ Three formats generated:
 
 ## Version History
 
-- **v1.0.0** (2024-01-15) - Initial release with ZipTax API support
-- **Unreleased** - Added TaxCloud integration and postal code lookups
+- **v0.1.4-beta** - Initial beta release with ZipTax API support
+- **v0.2.0-beta** - Added TaxCloud integration and postal code lookups
 
 ---
 

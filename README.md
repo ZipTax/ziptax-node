@@ -123,8 +123,8 @@ Returns account metrics and usage information.
 ```typescript
 const metrics = await client.getAccountMetrics();
 
-console.log('Requests:', metrics.core_request_count, '/', metrics.core_request_limit);
-console.log('Usage:', metrics.core_usage_percent.toFixed(2), '%');
+console.log('Requests:', metrics.request_count, '/', metrics.request_limit);
+console.log('Usage:', metrics.usage_percent.toFixed(2), '%');
 ```
 
 ## TaxCloud Order Management (Optional)
@@ -204,10 +204,8 @@ const refunds = await client.refundOrder('my-order-1', {
   ],
 });
 
-// Full refund (empty items array)
-const fullRefunds = await client.refundOrder('my-order-1', {
-  items: [],
-});
+// Full refund (omit items or pass empty array)
+const fullRefunds = await client.refundOrder('my-order-1');
 ```
 
 ## Response Types
@@ -235,13 +233,9 @@ interface V60PostalCodeResponse {
 }
 
 interface V60AccountMetrics {
-  core_request_count: number;
-  core_request_limit: number;
-  core_usage_percent: number;
-  geo_enabled: boolean;
-  geo_request_count: number;
-  geo_request_limit: number;
-  geo_usage_percent: number;
+  request_count: number;
+  request_limit: number;
+  usage_percent: number;
   is_active: boolean;
   message: string;
 }
@@ -260,7 +254,7 @@ interface OrderResponse {
   destination: TaxCloudAddressResponse;
   lineItems: CartItemWithTaxResponse[];
   currency: CurrencyResponse;
-  channel: string;
+  channel: string | null;
   deliveredBySeller: boolean;
   excludeFromFiling: boolean;
   exemption: Exemption;
@@ -276,7 +270,7 @@ interface RefundTransactionResponse {
 
 See the [full type definitions](./src/models/) for complete details.
 
-**Note:** Most API responses use camelCase field names (e.g., `baseRates`, `taxSummaries`), but account metrics use snake_case (e.g., `core_request_count`, `geo_enabled`).
+**Note:** Most API responses use camelCase field names (e.g., `baseRates`, `taxSummaries`), but account metrics use snake_case (e.g., `request_count`, `is_active`).
 
 ## Error Handling
 
@@ -317,16 +311,18 @@ try {
 
 ### TaxCloud Error Handling
 
-When using TaxCloud features, errors will be thrown if the credentials are not configured:
+When using TaxCloud features, a `ZiptaxConfigurationError` will be thrown if the credentials are not configured:
 
 ```typescript
+import { ZiptaxConfigurationError } from '@ziptax/node-sdk';
+
 try {
   const order = await client.createOrder({
     orderId: 'my-order-1',
     // ... order details
   });
 } catch (error) {
-  if (error.message.includes('TaxCloud credentials not configured')) {
+  if (error instanceof ZiptaxConfigurationError) {
     console.error('Please provide taxCloudConnectionId and taxCloudAPIKey during client initialization');
   } else {
     // Handle other errors

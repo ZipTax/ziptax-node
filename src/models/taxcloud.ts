@@ -199,10 +199,13 @@ export interface UpdateOrderRequest {
 
 /**
  * Request to refund an order
+ * If items is empty or omitted, the entire order will be refunded.
  */
 export interface RefundTransactionRequest {
-  /** Items to refund */
-  items: CartItemRefundWithTaxRequest[];
+  /** Items to refund (empty or omitted means full refund) */
+  items?: CartItemRefundWithTaxRequest[];
+  /** Include only if this return is a change to a previously filed sales tax return */
+  returnedDate?: string;
 }
 
 /**
@@ -216,5 +219,5 @@ export interface RefundTransactionResponse {
   /** Refunded items with tax details */
   items: CartItemRefundWithTaxResponse[];
   /** When items were returned (RFC3339 format) */
-  returnedDate: string;
+  returnedDate?: string;
 }

@@ -42,7 +42,7 @@ describe('HTTPClient', () => {
         headers: {
           'X-API-Key': 'test-api-key',
           'Content-Type': 'application/json',
-          'User-Agent': 'ziptax-node/1.0.0',
+          'User-Agent': 'ziptax-node/0.2.0-beta',
         },
       });
     });

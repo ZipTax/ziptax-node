@@ -114,13 +114,9 @@ const mockPostalCodeResponse = {
 };
 
 const mockAccountMetrics = {
-  core_request_count: 15595,
-  core_request_limit: 1000000,
-  core_usage_percent: 1.5595,
-  geo_enabled: true,
-  geo_request_count: 43891,
-  geo_request_limit: 1000000,
-  geo_usage_percent: 4.3891,
+  request_count: 15595,
+  request_limit: 1000000,
+  usage_percent: 1.5595,
   is_active: true,
   message: 'Contact support@zip.tax to modify your account',
 };

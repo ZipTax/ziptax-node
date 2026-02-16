@@ -24,19 +24,6 @@ export interface HTTPClientConfig {
   enableLogging?: boolean;
 }
 
-export interface TaxCloudHTTPClientConfig {
-  /** Base URL for TaxCloud API requests */
-  baseURL: string;
-  /** TaxCloud API key for authentication */
-  apiKey: string;
-  /** Request timeout in milliseconds */
-  timeout?: number;
-  /** Retry configuration */
-  retryOptions?: RetryOptions;
-  /** Enable request/response logging */
-  enableLogging?: boolean;
-}
-
 /**
  * HTTP client for making API requests
  */
@@ -55,7 +42,7 @@ export class HTTPClient {
       headers: {
         'X-API-Key': config.apiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'ziptax-node/1.0.0',
+        'User-Agent': `ziptax-node/${process.env.npm_package_version || '0.2.0-beta'}`,
       },
     });
 
@@ -121,6 +108,7 @@ export class HTTPClient {
     const makeRequest = async (): Promise<T> => {
       try {
         const response: AxiosResponse<T> = await this.axiosInstance.request(config);
+        this.checkResponseBody(response.data);
         return response.data;
       } catch (error) {
         throw this.handleError(error);
@@ -128,6 +116,35 @@ export class HTTPClient {
     };
 
     return retryWithBackoff(makeRequest, this.retryOptions);
+  }
+
+  /**
+   * Check response body for API-level errors (e.g., invalid key returns HTTP 200 with error code)
+   */
+  private checkResponseBody(data: unknown): void {
+    if (typeof data !== 'object' || data === null) {
+      return;
+    }
+
+    const body = data as Record<string, unknown>;
+
+    // Check for V60 response metadata errors
+    if (body.metadata && typeof body.metadata === 'object') {
+      const metadata = body.metadata as Record<string, unknown>;
+      if (metadata.response && typeof metadata.response === 'object') {
+        const response = metadata.response as Record<string, unknown>;
+        const code = response.code;
+        if (typeof code === 'number' && code !== 100) {
+          const message =
+            typeof response.message === 'string' ? response.message : 'API request failed';
+          // Code 101 = invalid key
+          if (code === 101) {
+            throw new ZiptaxAuthenticationError(message);
+          }
+          throw new ZiptaxAPIError(message, undefined, data);
+        }
+      }
+    }
   }
 
   /**

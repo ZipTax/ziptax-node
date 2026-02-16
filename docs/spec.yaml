@@ -9,7 +9,7 @@
 project:
   name: "@ziptax/node-sdk"
   language: "typescript"
-  version: "1.0.0"
+  version: "0.2.0-beta"
   description: "Official Node.js SDK for the ZipTax API"
 
   # Repository information
@@ -887,40 +887,21 @@ models:
   - name: "V60AccountMetrics"
     description: "Account metrics by API key"
     properties:
-      - name: "core_request_count"
+      - name: "request_count"
         type: "integer"
         format: "int64"
         required: true
-        description: "Number of core API requests made"
-      - name: "core_request_limit"
+        description: "Number of API requests made"
+      - name: "request_limit"
         type: "integer"
         format: "int64"
         required: true
-        description: "Maximum allowed core API requests"
-      - name: "core_usage_percent"
+        description: "Maximum allowed API requests"
+      - name: "usage_percent"
         type: "number"
         format: "float"
         required: true
-        description: "Percentage of core request limit used"
-      - name: "geo_enabled"
-        type: "boolean"
-        required: true
-        description: "Whether geolocation features are enabled"
-      - name: "geo_request_count"
-        type: "integer"
-        format: "int64"
-        required: true
-        description: "Number of geolocation requests made"
-      - name: "geo_request_limit"
-        type: "integer"
-        format: "int64"
-        required: true
-        description: "Maximum allowed geolocation requests"
-      - name: "geo_usage_percent"
-        type: "number"
-        format: "float"
-        required: true
-        description: "Percentage of geolocation request limit used"
+        description: "Percentage of request limit used"
       - name: "is_active"
         type: "boolean"
         required: true
@@ -1869,13 +1850,9 @@ actual_api_responses:
     endpoint: "GET /account/v60/metrics"
     example: |
       {
-        "core_request_count": 15595,
-        "core_request_limit": 1000000,
-        "core_usage_percent": 1.5595,
-        "geo_enabled": true,
-        "geo_request_count": 43891,
-        "geo_request_limit": 1000000,
-        "geo_usage_percent": 4.3891,
+        "request_count": 15595,
+        "request_limit": 1000000,
+        "usage_percent": 1.5595,
         "is_active": true,
         "message": "Contact support@zip.tax to modify your account"
       }

@@ -3,6 +3,7 @@
  */
 
 import { ZiptaxClient } from '../src/client';
+import { ZiptaxConfigurationError } from '../src/exceptions';
 import { HTTPClient } from '../src/utils/http';
 import {
   CreateOrderRequest,
@@ -164,7 +165,7 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
       );
     });
 
-    it('should throw error when TaxCloud credentials are not configured', async () => {
+    it('should throw ZiptaxConfigurationError when TaxCloud credentials are not configured', async () => {
       const clientWithoutTaxCloud = new ZiptaxClient({
         apiKey: 'test-api-key',
       });
@@ -191,7 +192,7 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
       };
 
       await expect(clientWithoutTaxCloud.createOrder(createRequest)).rejects.toThrow(
-        'TaxCloud credentials not configured'
+        ZiptaxConfigurationError
       );
     });
 
@@ -233,13 +234,13 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
       );
     });
 
-    it('should throw error when TaxCloud credentials are not configured', async () => {
+    it('should throw ZiptaxConfigurationError when TaxCloud credentials are not configured', async () => {
       const clientWithoutTaxCloud = new ZiptaxClient({
         apiKey: 'test-api-key',
       });
 
       await expect(clientWithoutTaxCloud.getOrder('test-order-123')).rejects.toThrow(
-        'TaxCloud credentials not configured'
+        ZiptaxConfigurationError
       );
     });
 
@@ -270,7 +271,7 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
       );
     });
 
-    it('should throw error when TaxCloud credentials are not configured', async () => {
+    it('should throw ZiptaxConfigurationError when TaxCloud credentials are not configured', async () => {
       const clientWithoutTaxCloud = new ZiptaxClient({
         apiKey: 'test-api-key',
       });
@@ -279,13 +280,15 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
         completedDate: '2024-01-16T10:00:00Z',
       };
 
-      await expect(clientWithoutTaxCloud.updateOrder('test-order-123', updateRequest)).rejects.toThrow(
-        'TaxCloud credentials not configured'
-      );
+      await expect(
+        clientWithoutTaxCloud.updateOrder('test-order-123', updateRequest)
+      ).rejects.toThrow(ZiptaxConfigurationError);
     });
 
     it('should validate required fields', async () => {
-      await expect(client.updateOrder('', { completedDate: '2024-01-16T10:00:00Z' })).rejects.toThrow();
+      await expect(
+        client.updateOrder('', { completedDate: '2024-01-16T10:00:00Z' })
+      ).rejects.toThrow();
       await expect(client.updateOrder('test-order-123', { completedDate: '' })).rejects.toThrow();
     });
   });
@@ -312,7 +315,7 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
       );
     });
 
-    it('should throw error when TaxCloud credentials are not configured', async () => {
+    it('should throw ZiptaxConfigurationError when TaxCloud credentials are not configured', async () => {
       const clientWithoutTaxCloud = new ZiptaxClient({
         apiKey: 'test-api-key',
       });
@@ -321,18 +324,21 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
         items: [{ itemId: 'item-1', quantity: 1.0 }],
       };
 
-      await expect(clientWithoutTaxCloud.refundOrder('test-order-123', refundRequest)).rejects.toThrow(
-        'TaxCloud credentials not configured'
-      );
+      await expect(
+        clientWithoutTaxCloud.refundOrder('test-order-123', refundRequest)
+      ).rejects.toThrow(ZiptaxConfigurationError);
     });
 
-    it('should validate items array is not empty', async () => {
-      const invalidRequest: RefundTransactionRequest = {
-        items: [],
-      };
+    it('should allow full refund without items (empty or omitted)', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockRefundResponse);
 
-      await expect(client.refundOrder('test-order-123', invalidRequest)).rejects.toThrow(
-        'Refund request must include at least one item'
+      // Full refund with no request body
+      const result = await client.refundOrder('test-order-123');
+
+      expect(result).toEqual(mockRefundResponse);
+      expect(mockTaxCloudHttpClient.post).toHaveBeenCalledWith(
+        '/tax/connections/25eb9b97-5acb-492d-b720-c03e79cf715a/orders/refunds/test-order-123',
+        {}
       );
     });
 
