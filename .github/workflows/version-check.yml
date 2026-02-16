@@ -29,6 +29,9 @@ jobs:
         with:
           node-version: '20.x'
 
+      - name: Install semver
+        run: npm install -g semver
+
       - name: Get version from PR branch
         id: pr-version
         run: |
@@ -66,7 +69,7 @@ jobs:
           echo "  Base: $BASE_VERSION"
           echo "  PR:   $PR_VERSION"
 
-          # Skip check if versions are identical (allow for documentation-only changes with label)
+          # Skip check if versions are identical
           if [[ "$PR_VERSION" == "$BASE_VERSION" ]]; then
             echo "❌ Version not bumped!"
             echo "status=failed" >> $GITHUB_OUTPUT
@@ -74,30 +77,37 @@ jobs:
             exit 1
           fi
 
-          # Use npm to compare versions
-          npx semver $PR_VERSION -r ">$BASE_VERSION" > /dev/null 2>&1
-          if [ $? -eq 0 ]; then
+          # Compare versions using node-semver gt (handles prerelease correctly)
+          IS_GREATER=$(node -e "
+            const semver = require('semver');
+            const valid_pr = semver.valid('$PR_VERSION');
+            const valid_base = semver.valid('$BASE_VERSION');
+            if (!valid_pr || !valid_base) {
+              console.log('invalid');
+            } else if (semver.gt('$PR_VERSION', '$BASE_VERSION')) {
+              console.log('true');
+            } else {
+              console.log('false');
+            }
+          ")
+
+          if [ "$IS_GREATER" == "invalid" ]; then
+            echo "❌ Invalid semver format!"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "message=One or both versions are not valid semver: base=$BASE_VERSION, pr=$PR_VERSION" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          if [ "$IS_GREATER" == "true" ]; then
             echo "✅ Version successfully bumped from $BASE_VERSION to $PR_VERSION"
             echo "status=success" >> $GITHUB_OUTPUT
 
             # Determine bump type
-            MAJOR_BASE=$(echo $BASE_VERSION | cut -d. -f1)
-            MINOR_BASE=$(echo $BASE_VERSION | cut -d. -f2)
-            PATCH_BASE=$(echo $BASE_VERSION | cut -d. -f3 | cut -d- -f1)
-
-            MAJOR_PR=$(echo $PR_VERSION | cut -d. -f1)
-            MINOR_PR=$(echo $PR_VERSION | cut -d. -f2)
-            PATCH_PR=$(echo $PR_VERSION | cut -d. -f3 | cut -d- -f1)
-
-            if [ "$MAJOR_PR" -gt "$MAJOR_BASE" ]; then
-              BUMP_TYPE="major"
-            elif [ "$MINOR_PR" -gt "$MINOR_BASE" ]; then
-              BUMP_TYPE="minor"
-            elif [ "$PATCH_PR" -gt "$PATCH_BASE" ]; then
-              BUMP_TYPE="patch"
-            else
-              BUMP_TYPE="prerelease"
-            fi
+            BUMP_TYPE=$(node -e "
+              const semver = require('semver');
+              const diff = semver.diff('$BASE_VERSION', '$PR_VERSION');
+              console.log(diff || 'prerelease');
+            ")
 
             echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
             echo "message=Version bumped from $BASE_VERSION to $PR_VERSION (${BUMP_TYPE} bump)" >> $GITHUB_OUTPUT
