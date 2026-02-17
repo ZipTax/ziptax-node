@@ -77,7 +77,7 @@ api:
     notes:
       - "TaxCloud features are OPTIONAL and only available when both Connection ID and API Key are provided during client initialization"
       - "Order management functions will return error if TaxCloud credentials not configured"
-      - "Uses Header authentication with the X-API-KEY header for both APIs, but TaxCloud also requires the connectionId in the path for order endpoints"
+      - "Uses Header authentication with the X-API-Key header for both APIs, but TaxCloud also requires the connectionId in the path for order endpoints"
 
 # -----------------------------------------------------------------------------
 # SDK Configuration
@@ -283,7 +283,7 @@ resources:
           status_code: 201
         authentication:
           type: "header"
-          header: "X-API-KEY"
+          header: "X-API-Key"
           format: "{taxCloudAPIKey}"
           note: "Uses TaxCloud API Key configured during client initialization"
 
@@ -314,7 +314,7 @@ resources:
           status_code: 200
         authentication:
           type: "header"
-          header: "X-API-KEY"
+          header: "X-API-Key"
           format: "{taxCloudAPIKey}"
           note: "Uses TaxCloud API Key configured during client initialization"
 
@@ -348,7 +348,7 @@ resources:
           status_code: 200
         authentication:
           type: "header"
-          header: "X-API-KEY"
+          header: "X-API-Key"
           format: "{taxCloudAPIKey}"
           note: "Uses TaxCloud API Key configured during client initialization"
 
@@ -384,7 +384,7 @@ resources:
           status_code: 201
         authentication:
           type: "header"
-          header: "X-API-KEY"
+          header: "X-API-Key"
           format: "{taxCloudAPIKey}"
           note: "Uses TaxCloud API Key configured during client initialization"
 

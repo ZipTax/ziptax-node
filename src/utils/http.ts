@@ -10,6 +10,7 @@ import {
   ZiptaxRateLimitError,
 } from '../exceptions';
 import { retryWithBackoff, RetryOptions } from './retry';
+import { SDK_VERSION } from '../version';
 
 export interface HTTPClientConfig {
   /** Base URL for API requests */
@@ -42,7 +43,7 @@ export class HTTPClient {
       headers: {
         'X-API-Key': config.apiKey,
         'Content-Type': 'application/json',
-        'User-Agent': `ziptax-node/${process.env.npm_package_version || '0.2.0-beta'}`,
+        'User-Agent': `ziptax-node/${SDK_VERSION}`,
       },
     });
 
