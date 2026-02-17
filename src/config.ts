@@ -18,6 +18,10 @@ export interface ZiptaxConfig {
   retryOptions?: RetryOptions;
   /** Enable request/response logging (default: false) */
   enableLogging?: boolean;
+  /** TaxCloud Connection ID (UUID format) - required for TaxCloud order management */
+  taxCloudConnectionId?: string;
+  /** TaxCloud API Key - required for TaxCloud order management */
+  taxCloudAPIKey?: string;
 }
 
 /**
@@ -39,7 +43,7 @@ export interface GetSalesTaxByAddressParams {
   taxabilityCode?: string;
   /** Country code (default: USA) */
   countryCode?: 'USA' | 'CAN';
-  /** Historical date for rates (YYYY-MM format) */
+  /** Historical date for rates (YYYYMM format, e.g., '202401') */
   historical?: string;
   /** Response format (default: json) */
   format?: 'json' | 'xml';
@@ -55,7 +59,7 @@ export interface GetSalesTaxByGeoLocationParams {
   lng: string;
   /** Country code (default: USA) */
   countryCode?: 'USA' | 'CAN';
-  /** Historical date for rates (YYYY-MM format) */
+  /** Historical date for rates (YYYYMM format, e.g., '202401') */
   historical?: string;
   /** Response format (default: json) */
   format?: 'json' | 'xml';

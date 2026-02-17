@@ -10,6 +10,7 @@ import {
   ZiptaxRateLimitError,
 } from '../exceptions';
 import { retryWithBackoff, RetryOptions } from './retry';
+import { SDK_VERSION } from '../version';
 
 export interface HTTPClientConfig {
   /** Base URL for API requests */
@@ -42,7 +43,7 @@ export class HTTPClient {
       headers: {
         'X-API-Key': config.apiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'ziptax-node/1.0.0',
+        'User-Agent': `ziptax-node/${SDK_VERSION}`,
       },
     });
 
@@ -95,12 +96,20 @@ export class HTTPClient {
   }
 
   /**
+   * Make a PATCH request
+   */
+  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return this.request<T>({ ...config, method: 'PATCH', url, data });
+  }
+
+  /**
    * Make a request with retry logic
    */
   private async request<T>(config: AxiosRequestConfig): Promise<T> {
     const makeRequest = async (): Promise<T> => {
       try {
         const response: AxiosResponse<T> = await this.axiosInstance.request(config);
+        this.checkResponseBody(response.data);
         return response.data;
       } catch (error) {
         throw this.handleError(error);
@@ -108,6 +117,35 @@ export class HTTPClient {
     };
 
     return retryWithBackoff(makeRequest, this.retryOptions);
+  }
+
+  /**
+   * Check response body for API-level errors (e.g., invalid key returns HTTP 200 with error code)
+   */
+  private checkResponseBody(data: unknown): void {
+    if (typeof data !== 'object' || data === null) {
+      return;
+    }
+
+    const body = data as Record<string, unknown>;
+
+    // Check for V60 response metadata errors
+    if (body.metadata && typeof body.metadata === 'object') {
+      const metadata = body.metadata as Record<string, unknown>;
+      if (metadata.response && typeof metadata.response === 'object') {
+        const response = metadata.response as Record<string, unknown>;
+        const code = response.code;
+        if (typeof code === 'number' && code !== 100) {
+          const message =
+            typeof response.message === 'string' ? response.message : 'API request failed';
+          // Code 101 = invalid key
+          if (code === 101) {
+            throw new ZiptaxAuthenticationError(message);
+          }
+          throw new ZiptaxAPIError(message, undefined, data);
+        }
+      }
+    }
   }
 
   /**

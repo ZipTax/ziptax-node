@@ -3,6 +3,7 @@
  */
 
 import { HTTPClient } from './utils/http';
+import { ZiptaxConfigurationError } from './exceptions';
 import {
   validateApiKey,
   validateRequired,
@@ -17,15 +18,27 @@ import {
   GetRatesByPostalCodeParams,
   GetAccountMetricsParams,
 } from './config';
-import { V60Response, V60PostalCodeResponse, V60AccountMetrics } from './models';
+import {
+  V60Response,
+  V60PostalCodeResponse,
+  V60AccountMetrics,
+  CreateOrderRequest,
+  OrderResponse,
+  UpdateOrderRequest,
+  RefundTransactionRequest,
+  RefundTransactionResponse,
+} from './models';
 
 /**
  * ZipTax API client
  */
 export class ZiptaxClient {
   private readonly httpClient: HTTPClient;
-  private readonly config: Required<Omit<ZiptaxConfig, 'retryOptions'>> &
-    Pick<ZiptaxConfig, 'retryOptions'>;
+  private readonly taxCloudHttpClient?: HTTPClient;
+  private readonly config: Required<
+    Omit<ZiptaxConfig, 'retryOptions' | 'taxCloudConnectionId' | 'taxCloudAPIKey'>
+  > &
+    Pick<ZiptaxConfig, 'retryOptions' | 'taxCloudConnectionId' | 'taxCloudAPIKey'>;
 
   /**
    * Create a new ZipTax client instance
@@ -41,7 +54,7 @@ export class ZiptaxClient {
       ...config,
     };
 
-    // Initialize HTTP client
+    // Initialize ZipTax HTTP client
     this.httpClient = new HTTPClient({
       baseURL: this.config.baseURL,
       apiKey: this.config.apiKey,
@@ -49,6 +62,17 @@ export class ZiptaxClient {
       retryOptions: this.config.retryOptions,
       enableLogging: this.config.enableLogging,
     });
+
+    // Initialize TaxCloud HTTP client if credentials are provided
+    if (config.taxCloudConnectionId && config.taxCloudAPIKey) {
+      this.taxCloudHttpClient = new HTTPClient({
+        baseURL: 'https://api.v3.taxcloud.com',
+        apiKey: config.taxCloudAPIKey,
+        timeout: this.config.timeout,
+        retryOptions: this.config.retryOptions,
+        enableLogging: this.config.enableLogging,
+      });
+    }
   }
 
   /**
@@ -67,7 +91,7 @@ export class ZiptaxClient {
     }
 
     if (params.historical) {
-      validatePattern(params.historical, /^[0-9]{4}-[0-9]{2}$/, 'historical', 'YYYY-MM format');
+      validatePattern(params.historical, /^[0-9]{6}$/, 'historical', 'YYYYMM format');
     }
 
     // Make API request
@@ -96,7 +120,7 @@ export class ZiptaxClient {
 
     // Validate optional parameters
     if (params.historical) {
-      validatePattern(params.historical, /^[0-9]{4}-[0-9]{2}$/, 'historical', 'YYYY-MM format');
+      validatePattern(params.historical, /^[0-9]{6}$/, 'historical', 'YYYYMM format');
     }
 
     // Make API request
@@ -143,6 +167,96 @@ export class ZiptaxClient {
   }
 
   /**
+   * Verify TaxCloud credentials are configured
+   * @throws ZiptaxConfigurationError if TaxCloud credentials are not configured
+   */
+  private verifyTaxCloudCredentials(): void {
+    if (!this.taxCloudHttpClient || !this.config.taxCloudConnectionId) {
+      throw new ZiptaxConfigurationError(
+        'TaxCloud credentials not configured. Please provide taxCloudConnectionId and taxCloudAPIKey in the client configuration.'
+      );
+    }
+  }
+
+  /**
+   * Create a new TaxCloud order
+   * @param request - Order creation request
+   * @returns OrderResponse with created order details
+   */
+  async createOrder(request: CreateOrderRequest): Promise<OrderResponse> {
+    this.verifyTaxCloudCredentials();
+
+    // Validate required fields
+    validateRequired(request.orderId, 'orderId');
+    validateRequired(request.customerId, 'customerId');
+    validateRequired(request.transactionDate, 'transactionDate');
+    validateRequired(request.completedDate, 'completedDate');
+
+    const connectionId = this.config.taxCloudConnectionId!;
+    const path = `/tax/connections/${connectionId}/orders`;
+
+    return this.taxCloudHttpClient!.post<OrderResponse>(path, request);
+  }
+
+  /**
+   * Get an existing TaxCloud order by ID
+   * @param orderId - Unique order identifier
+   * @returns OrderResponse with order details
+   */
+  async getOrder(orderId: string): Promise<OrderResponse> {
+    this.verifyTaxCloudCredentials();
+
+    // Validate required fields
+    validateRequired(orderId, 'orderId');
+
+    const connectionId = this.config.taxCloudConnectionId!;
+    const path = `/tax/connections/${connectionId}/orders/${orderId}`;
+
+    return this.taxCloudHttpClient!.get<OrderResponse>(path);
+  }
+
+  /**
+   * Update an existing TaxCloud order
+   * @param orderId - Unique order identifier
+   * @param request - Order update request
+   * @returns OrderResponse with updated order details
+   */
+  async updateOrder(orderId: string, request: UpdateOrderRequest): Promise<OrderResponse> {
+    this.verifyTaxCloudCredentials();
+
+    // Validate required fields
+    validateRequired(orderId, 'orderId');
+    validateRequired(request.completedDate, 'completedDate');
+
+    const connectionId = this.config.taxCloudConnectionId!;
+    const path = `/tax/connections/${connectionId}/orders/${orderId}`;
+
+    return this.taxCloudHttpClient!.patch<OrderResponse>(path, request);
+  }
+
+  /**
+   * Refund a TaxCloud order
+   * @param orderId - Unique order identifier
+   * @param request - Refund request with items to refund
+   * @returns Array of RefundTransactionResponse
+   */
+  async refundOrder(
+    orderId: string,
+    request?: RefundTransactionRequest
+  ): Promise<RefundTransactionResponse[]> {
+    this.verifyTaxCloudCredentials();
+
+    // Validate required fields
+    validateRequired(orderId, 'orderId');
+
+    const connectionId = this.config.taxCloudConnectionId!;
+    const path = `/tax/connections/${connectionId}/orders/refunds/${orderId}`;
+
+    // Empty or omitted items means full refund per TaxCloud API spec
+    return this.taxCloudHttpClient!.post<RefundTransactionResponse[]>(path, request || {});
+  }
+
+  /**
    * Get the current configuration
    */
   getConfig(): Readonly<ZiptaxConfig> {
@@ -152,6 +266,8 @@ export class ZiptaxClient {
       timeout: this.config.timeout,
       retryOptions: this.config.retryOptions,
       enableLogging: this.config.enableLogging,
+      taxCloudConnectionId: this.config.taxCloudConnectionId,
+      taxCloudAPIKey: this.config.taxCloudAPIKey,
     };
   }
 }

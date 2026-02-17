@@ -114,13 +114,9 @@ const mockPostalCodeResponse = {
 };
 
 const mockAccountMetrics = {
-  core_request_count: 15595,
-  core_request_limit: 1000000,
-  core_usage_percent: 1.5595,
-  geo_enabled: true,
-  geo_request_count: 43891,
-  geo_request_limit: 1000000,
-  geo_usage_percent: 4.3891,
+  request_count: 15595,
+  request_limit: 1000000,
+  usage_percent: 1.5595,
   is_active: true,
   message: 'Contact support@zip.tax to modify your account',
 };
@@ -212,14 +208,32 @@ describe('ZiptaxClient', () => {
       ).rejects.toThrow(ZiptaxValidationError);
     });
 
-    it('should validate historical date format', async () => {
+    it('should validate historical date format (YYYYMM)', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      // Reject YYYY-MM (with dash)
+      await expect(
+        client.getSalesTaxByAddress({
+          address: '200 Spectrum Center Drive',
+          historical: '2024-01',
+        })
+      ).rejects.toThrow(ZiptaxValidationError);
+      // Reject arbitrary string
       await expect(
         client.getSalesTaxByAddress({
           address: '200 Spectrum Center Drive',
           historical: '2024-1-1',
         })
       ).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should accept valid YYYYMM historical date', async () => {
+      mockHttpClient.get.mockResolvedValue(mockV60Response);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const result = await client.getSalesTaxByAddress({
+        address: '200 Spectrum Center Drive',
+        historical: '202401',
+      });
+      expect(result).toEqual(mockV60Response);
     });
   });
 

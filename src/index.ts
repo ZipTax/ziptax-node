@@ -11,10 +11,11 @@ export type {
   ZiptaxConfig,
   GetSalesTaxByAddressParams,
   GetSalesTaxByGeoLocationParams,
+  GetRatesByPostalCodeParams,
   GetAccountMetricsParams,
 } from './config';
 
-// Export response models
+// Export ZipTax response models
 export type {
   V60Response,
   V60Metadata,
@@ -26,7 +27,30 @@ export type {
   V60TaxSummary,
   V60DisplayRate,
   V60AddressDetail,
+  V60PostalCodeResponse,
+  V60PostalCodeResult,
+  V60PostalCodeAddressDetail,
   V60AccountMetrics,
+} from './models';
+
+// Export TaxCloud models
+export type {
+  TaxCloudAddress,
+  TaxCloudAddressResponse,
+  Tax,
+  RefundTax,
+  Currency,
+  CurrencyResponse,
+  Exemption,
+  CartItemWithTax,
+  CartItemWithTaxResponse,
+  CartItemRefundWithTaxRequest,
+  CartItemRefundWithTaxResponse,
+  CreateOrderRequest,
+  OrderResponse,
+  UpdateOrderRequest,
+  RefundTransactionRequest,
+  RefundTransactionResponse,
 } from './models';
 
 // Export exceptions

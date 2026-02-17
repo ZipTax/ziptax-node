@@ -245,20 +245,12 @@ export interface V60PostalCodeResponse {
  * Account metrics by API key
  */
 export interface V60AccountMetrics {
-  /** Number of core API requests made */
-  core_request_count: number;
-  /** Maximum allowed core API requests */
-  core_request_limit: number;
-  /** Percentage of core request limit used */
-  core_usage_percent: number;
-  /** Whether geolocation features are enabled */
-  geo_enabled: boolean;
-  /** Number of geolocation requests made */
-  geo_request_count: number;
-  /** Maximum allowed geolocation requests */
-  geo_request_limit: number;
-  /** Percentage of geolocation request limit used */
-  geo_usage_percent: number;
+  /** Number of API requests made */
+  request_count: number;
+  /** Maximum allowed API requests */
+  request_limit: number;
+  /** Percentage of request limit used */
+  usage_percent: number;
   /** Whether the account is currently active */
   is_active: boolean;
   /** Account status or informational message */

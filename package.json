@@ -1,6 +1,6 @@
 {
   "name": "@ziptax/node-sdk",
-  "version": "0.1.4-beta",
+  "version": "0.2.0-beta",
   "description": "Official Node.js SDK for the ZipTax API",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -18,22 +18,25 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npm run build:clean && npm run build:cjs && npm run build:esm && npm run build:types",
+    "build": "npm run build:clean && npm run build:version && npm run build:cjs && npm run build:esm && npm run build:types",
     "build:clean": "rm -rf dist",
+    "build:version": "node scripts/generate-version.js",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:types": "tsc -p tsconfig.types.json",
+    "pretest": "npm run build:version",
     "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:watch": "npm run build:version && jest --watch",
+    "test:coverage": "npm run build:version && jest --coverage",
     "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' 'tests/**/*.ts' --fix",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' 'examples/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts' 'tests/**/*.ts' 'examples/**/*.ts'",
-    "type-check": "tsc --noEmit",
+    "type-check": "npm run build:version && tsc --noEmit",
     "example:basic": "tsx examples/basic-usage.ts",
     "example:async": "tsx examples/async-usage.ts",
     "example:errors": "tsx examples/error-handling.ts",
+    "example:taxcloud": "tsx examples/taxcloud-orders.ts",
     "prepublishOnly": "npm run build && npm run test && npm run lint && npm run type-check"
   },
   "keywords": [

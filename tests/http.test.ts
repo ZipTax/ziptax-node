@@ -12,6 +12,7 @@ import {
 } from '../src/exceptions';
 
 jest.mock('axios');
+jest.mock('../src/version', () => ({ SDK_VERSION: '0.2.0-beta' }));
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('HTTPClient', () => {
@@ -42,7 +43,7 @@ describe('HTTPClient', () => {
         headers: {
           'X-API-Key': 'test-api-key',
           'Content-Type': 'application/json',
-          'User-Agent': 'ziptax-node/1.0.0',
+          'User-Agent': 'ziptax-node/0.2.0-beta',
         },
       });
     });
@@ -99,6 +100,23 @@ describe('HTTPClient', () => {
         method: 'POST',
         url: '/test',
         data: postData,
+      });
+    });
+  });
+
+  describe('patch', () => {
+    it('should make PATCH request with data and return response', async () => {
+      const mockData = { result: 'updated' };
+      const patchData = { key: 'new-value' };
+      mockAxiosInstance.request.mockResolvedValue({ data: mockData });
+
+      const result = await httpClient.patch('/test', patchData);
+
+      expect(result).toEqual(mockData);
+      expect(mockAxiosInstance.request).toHaveBeenCalledWith({
+        method: 'PATCH',
+        url: '/test',
+        data: patchData,
       });
     });
   });
@@ -221,6 +239,110 @@ describe('HTTPClient', () => {
       mockedAxios.isAxiosError.mockReturnValue(false);
 
       await expect(httpClient.get('/test')).rejects.toThrow('string error');
+    });
+  });
+
+  describe('response body error checking', () => {
+    it('should throw ZiptaxAuthenticationError for code 101 (invalid key)', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: {
+          metadata: {
+            response: {
+              code: 101,
+              message: 'Invalid API key',
+            },
+          },
+        },
+      });
+
+      await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAuthenticationError);
+      await expect(httpClient.get('/test')).rejects.toThrow('Invalid API key');
+    });
+
+    it('should throw ZiptaxAPIError for non-100 error codes other than 101', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: {
+          metadata: {
+            response: {
+              code: 200,
+              message: 'Some API error',
+            },
+          },
+        },
+      });
+
+      await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAPIError);
+      await expect(httpClient.get('/test')).rejects.toThrow('Some API error');
+    });
+
+    it('should use default message when response code message is missing', async () => {
+      mockAxiosInstance.request.mockResolvedValue({
+        data: {
+          metadata: {
+            response: {
+              code: 102,
+            },
+          },
+        },
+      });
+
+      await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAPIError);
+      await expect(httpClient.get('/test')).rejects.toThrow('API request failed');
+    });
+
+    it('should not throw for code 100 (success)', async () => {
+      const mockData = {
+        results: [{ taxRate: 0.0825 }],
+        metadata: {
+          response: {
+            code: 100,
+            message: 'Success',
+          },
+        },
+      };
+      mockAxiosInstance.request.mockResolvedValue({ data: mockData });
+
+      const result = await httpClient.get('/test');
+      expect(result).toEqual(mockData);
+    });
+
+    it('should not throw for responses without metadata', async () => {
+      const mockData = { results: [{ taxRate: 0.0825 }] };
+      mockAxiosInstance.request.mockResolvedValue({ data: mockData });
+
+      const result = await httpClient.get('/test');
+      expect(result).toEqual(mockData);
+    });
+
+    it('should not throw for non-object response data', async () => {
+      mockAxiosInstance.request.mockResolvedValue({ data: 'plain string' });
+
+      const result = await httpClient.get('/test');
+      expect(result).toBe('plain string');
+    });
+
+    it('should not throw for null response data', async () => {
+      mockAxiosInstance.request.mockResolvedValue({ data: null });
+
+      const result = await httpClient.get('/test');
+      expect(result).toBeNull();
+    });
+
+    it('should include response body in ZiptaxAPIError for non-101 codes', async () => {
+      const responseData = {
+        metadata: {
+          response: {
+            code: 105,
+            message: 'Service unavailable',
+          },
+        },
+      };
+      mockAxiosInstance.request.mockResolvedValue({ data: responseData });
+
+      const error = (await httpClient.get('/test').catch((e) => e)) as ZiptaxAPIError;
+      expect(error).toBeInstanceOf(ZiptaxAPIError);
+      expect(error.message).toBe('Service unavailable');
+      expect(error.responseBody).toEqual(responseData);
     });
   });
 });
