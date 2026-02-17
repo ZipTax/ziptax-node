@@ -27,7 +27,7 @@
     "pretest": "npm run build:version",
     "test": "jest",
     "test:watch": "npm run build:version && jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "npm run build:version && jest --coverage",
     "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
     "lint:fix": "eslint 'src/**/*.ts' 'tests/**/*.ts' --fix",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts' 'examples/**/*.ts'",
