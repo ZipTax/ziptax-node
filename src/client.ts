@@ -231,15 +231,19 @@ export class ZiptaxClient {
     for (const item of cart.lineItems) {
       validateRequired(item.itemId, 'lineItems[].itemId');
 
-      if (typeof item.price !== 'number' || item.price <= 0) {
+      if (typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price <= 0) {
         throw new ZiptaxValidationError(
-          'lineItems[].price must be a positive number greater than 0'
+          'lineItems[].price must be a finite positive number greater than 0'
         );
       }
 
-      if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+      if (
+        typeof item.quantity !== 'number' ||
+        !Number.isFinite(item.quantity) ||
+        item.quantity <= 0
+      ) {
         throw new ZiptaxValidationError(
-          'lineItems[].quantity must be a positive number greater than 0'
+          'lineItems[].quantity must be a finite positive number greater than 0'
         );
       }
     }

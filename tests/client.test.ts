@@ -593,6 +593,58 @@ describe('ZiptaxClient', () => {
       await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
     });
 
+    it('should throw error for NaN price', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: NaN, quantity: 1.0 }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for Infinity price', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: Infinity, quantity: 1.0 }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for NaN quantity', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: NaN }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for Infinity quantity', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: Infinity }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
     it('should accept fractional quantity', async () => {
       mockHttpClient.post.mockResolvedValue(mockCartResponse);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
