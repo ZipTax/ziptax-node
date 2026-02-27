@@ -3,12 +3,13 @@
  */
 
 import { HTTPClient } from './utils/http';
-import { ZiptaxConfigurationError } from './exceptions';
+import { ZiptaxConfigurationError, ZiptaxValidationError } from './exceptions';
 import {
   validateApiKey,
   validateRequired,
   validateMaxLength,
   validatePattern,
+  parseAddressString,
 } from './utils/validation';
 import {
   ZiptaxConfig,
@@ -22,6 +23,9 @@ import {
   V60Response,
   V60PostalCodeResponse,
   V60AccountMetrics,
+  CalculateCartRequest,
+  CalculateCartResponse,
+  TaxCloudCalculateCartResponse,
   CreateOrderRequest,
   OrderResponse,
   UpdateOrderRequest,
@@ -164,6 +168,129 @@ export class ZiptaxClient {
     return this.httpClient.get<V60AccountMetrics>('/account/v60/metrics', {
       params: params?.format ? { format: params.format } : undefined,
     });
+  }
+
+  /**
+   * Calculate sales tax for a shopping cart.
+   *
+   * Routes to TaxCloud API when TaxCloud credentials are configured,
+   * otherwise routes to ZipTax API. The input contract (CalculateCartRequest)
+   * is the same regardless of which backend is used.
+   *
+   * @param request - Cart with line items, addresses, and currency
+   * @returns CalculateCartResponse (ZipTax) or TaxCloudCalculateCartResponse (TaxCloud)
+   */
+  async calculateCart(
+    request: CalculateCartRequest
+  ): Promise<CalculateCartResponse | TaxCloudCalculateCartResponse> {
+    // Validate cart structure
+    this.validateCartRequest(request);
+
+    // Route to TaxCloud if configured
+    if (this.taxCloudHttpClient && this.config.taxCloudConnectionId) {
+      return this.calculateCartTaxCloud(request);
+    }
+
+    // Default: route to ZipTax API
+    return this.httpClient.post<CalculateCartResponse>('/calculate/cart', request);
+  }
+
+  /**
+   * Validate the cart request structure
+   */
+  private validateCartRequest(request: CalculateCartRequest): void {
+    validateRequired(request.items, 'items');
+
+    if (!Array.isArray(request.items) || request.items.length !== 1) {
+      throw new ZiptaxValidationError('items array must contain exactly 1 cart element');
+    }
+
+    const cart = request.items[0];
+    validateRequired(cart.customerId, 'customerId');
+    validateRequired(cart.currency, 'currency');
+    validateRequired(cart.currency.currencyCode, 'currency.currencyCode');
+
+    if (cart.currency.currencyCode !== 'USD') {
+      throw new ZiptaxValidationError("currency.currencyCode must be 'USD'");
+    }
+
+    validateRequired(cart.destination, 'destination');
+    validateRequired(cart.destination.address, 'destination.address');
+    validateRequired(cart.origin, 'origin');
+    validateRequired(cart.origin.address, 'origin.address');
+    validateRequired(cart.lineItems, 'lineItems');
+
+    if (!Array.isArray(cart.lineItems) || cart.lineItems.length < 1) {
+      throw new ZiptaxValidationError('lineItems must contain at least 1 item');
+    }
+
+    if (cart.lineItems.length > 250) {
+      throw new ZiptaxValidationError('lineItems must not exceed 250 items');
+    }
+
+    for (const item of cart.lineItems) {
+      validateRequired(item.itemId, 'lineItems[].itemId');
+
+      if (typeof item.price !== 'number' || item.price <= 0) {
+        throw new ZiptaxValidationError(
+          'lineItems[].price must be a positive number greater than 0'
+        );
+      }
+
+      if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+        throw new ZiptaxValidationError(
+          'lineItems[].quantity must be a positive number greater than 0'
+        );
+      }
+    }
+  }
+
+  /**
+   * Transform and send cart calculation request to TaxCloud API.
+   * Parses single-string addresses into structured components,
+   * maps taxabilityCode to tic, and adds 0-based index to line items.
+   */
+  private async calculateCartTaxCloud(
+    request: CalculateCartRequest
+  ): Promise<TaxCloudCalculateCartResponse> {
+    const transformedBody = this.transformCartForTaxCloud(request);
+    const connectionId = this.config.taxCloudConnectionId!;
+    const path = `/tax/connections/${connectionId}/carts`;
+
+    return this.taxCloudHttpClient!.post<TaxCloudCalculateCartResponse>(path, transformedBody);
+  }
+
+  /**
+   * Transform CalculateCartRequest into TaxCloud's request format.
+   * - Parses single-string addresses into structured components
+   * - Maps taxabilityCode to tic field (defaults to 0)
+   * - Adds 0-based index to each line item
+   */
+  private transformCartForTaxCloud(request: CalculateCartRequest): Record<string, unknown> {
+    const items = request.items.map((cartItem) => {
+      const destination = parseAddressString(cartItem.destination.address);
+      const origin = parseAddressString(cartItem.origin.address);
+
+      const lineItems = cartItem.lineItems.map((lineItem, idx) => ({
+        index: idx,
+        itemId: lineItem.itemId,
+        price: lineItem.price,
+        quantity: lineItem.quantity,
+        tic: lineItem.taxabilityCode ?? 0,
+      }));
+
+      return {
+        customerId: cartItem.customerId,
+        currency: {
+          currencyCode: cartItem.currency.currencyCode,
+        },
+        destination,
+        origin,
+        lineItems,
+      };
+    });
+
+    return { items };
   }
 
   /**

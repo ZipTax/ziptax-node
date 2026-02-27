@@ -221,3 +221,60 @@ export interface RefundTransactionResponse {
   /** When items were returned (RFC3339 format) */
   returnedDate?: string;
 }
+
+// ---------------------------------------------------------------------------
+// TaxCloud Cart Tax Calculation Response Models
+// ---------------------------------------------------------------------------
+
+/**
+ * A line item in the TaxCloud cart response with calculated tax rate and amount
+ */
+export interface TaxCloudCartLineItemResponse {
+  /** Position/index of item within the cart (0-based) */
+  index: number;
+  /** Unique identifier for the line item (echoed from request) */
+  itemId: string;
+  /** Unit price of the item (echoed from request) */
+  price: number;
+  /** Quantity of the item (echoed from request) */
+  quantity: number;
+  /** Calculated tax information for this line item */
+  tax: Tax;
+  /** Taxability Information Code (mapped from taxabilityCode, nullable) */
+  tic: number | null;
+}
+
+/**
+ * A single cart response from TaxCloud with calculated tax information
+ */
+export interface TaxCloudCartItemResponse {
+  /** ID representing this cart (auto-generated) */
+  cartId: string;
+  /** Customer identifier (echoed from request) */
+  customerId: string;
+  /** Currency information */
+  currency: CurrencyResponse;
+  /** Whether the seller directly delivered the order */
+  deliveredBySeller: boolean;
+  /** Destination address (structured format from TaxCloud) */
+  destination: TaxCloudAddressResponse;
+  /** Origin address (structured format from TaxCloud) */
+  origin: TaxCloudAddressResponse;
+  /** Exemption information */
+  exemption: Exemption;
+  /** Array of line items with calculated tax information */
+  lineItems: TaxCloudCartLineItemResponse[];
+}
+
+/**
+ * Response from TaxCloud cart tax calculation.
+ * Returned by calculateCart when client is configured with TaxCloud credentials.
+ */
+export interface TaxCloudCalculateCartResponse {
+  /** TaxCloud Connection ID used for this cart calculation */
+  connectionId: string;
+  /** Array of cart results with calculated tax information */
+  items: TaxCloudCartItemResponse[];
+  /** RFC3339 datetime string the cart was calculated for */
+  transactionDate: string;
+}

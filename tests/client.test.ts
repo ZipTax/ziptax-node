@@ -5,6 +5,7 @@
 import { ZiptaxClient } from '../src/client';
 import { ZiptaxValidationError } from '../src/exceptions';
 import { HTTPClient } from '../src/utils/http';
+import { CalculateCartRequest, CalculateCartResponse } from '../src/models';
 
 // Mock the HTTPClient
 jest.mock('../src/utils/http');
@@ -359,6 +360,280 @@ describe('ZiptaxClient', () => {
           format: 'xml',
         },
       });
+    });
+  });
+
+  describe('calculateCart', () => {
+    const validCartRequest: CalculateCartRequest = {
+      items: [
+        {
+          customerId: 'customer-453',
+          currency: { currencyCode: 'USD' },
+          destination: {
+            address: '200 Spectrum Center Dr, Irvine, CA 92618-1905',
+          },
+          origin: {
+            address: '323 Washington Ave N, Minneapolis, MN 55401-2427',
+          },
+          lineItems: [
+            {
+              itemId: 'item-1',
+              price: 10.75,
+              quantity: 1.5,
+              taxabilityCode: 0,
+            },
+            {
+              itemId: 'item-2',
+              price: 25.0,
+              quantity: 2.0,
+            },
+          ],
+        },
+      ],
+    };
+
+    const mockCartResponse: CalculateCartResponse = {
+      items: [
+        {
+          cartId: 'ce4a1234-5678-90ab-cdef-1234567890ab',
+          customerId: 'customer-453',
+          destination: {
+            address: '200 Spectrum Center Dr, Irvine, CA 92618-1905',
+          },
+          origin: {
+            address: '323 Washington Ave N, Minneapolis, MN 55401-2427',
+          },
+          lineItems: [
+            {
+              itemId: 'item-1',
+              price: 10.75,
+              quantity: 1.5,
+              tax: { rate: 0.09025, amount: 1.45528 },
+            },
+            {
+              itemId: 'item-2',
+              price: 25.0,
+              quantity: 2.0,
+              tax: { rate: 0.09025, amount: 4.5125 },
+            },
+          ],
+        },
+      ],
+    };
+
+    it('should calculate cart tax via ZipTax API', async () => {
+      mockHttpClient.post.mockResolvedValue(mockCartResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.calculateCart(validCartRequest);
+
+      expect(result).toEqual(mockCartResponse);
+      expect(mockHttpClient.post).toHaveBeenCalledWith('/calculate/cart', validCartRequest);
+    });
+
+    it('should return correct response structure', async () => {
+      mockHttpClient.post.mockResolvedValue(mockCartResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = (await client.calculateCart(validCartRequest)) as CalculateCartResponse;
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].cartId).toBe('ce4a1234-5678-90ab-cdef-1234567890ab');
+      expect(result.items[0].customerId).toBe('customer-453');
+      expect(result.items[0].lineItems).toHaveLength(2);
+      expect(result.items[0].lineItems[0].tax.rate).toBe(0.09025);
+      expect(result.items[0].lineItems[0].tax.amount).toBe(1.45528);
+    });
+
+    it('should throw error when items array is empty', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.calculateCart({ items: [] })).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error when items array has more than 1 element', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [{ ...validCartRequest.items[0] }, { ...validCartRequest.items[0] }],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for missing customerId', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            customerId: '',
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for missing destination address', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            destination: { address: '' },
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for missing origin address', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            origin: { address: '' },
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for empty lineItems', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error when lineItems exceeds 250', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const manyItems = Array.from({ length: 251 }, (_, i) => ({
+        itemId: `item-${i}`,
+        price: 10.0,
+        quantity: 1.0,
+      }));
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: manyItems,
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for missing lineItem itemId', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: '', price: 10.0, quantity: 1.0 }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for zero price', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: 0, quantity: 1.0 }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for negative price', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: -5.0, quantity: 1.0 }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for zero quantity', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: 0 }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for negative quantity', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: -1.0 }],
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should accept fractional quantity', async () => {
+      mockHttpClient.post.mockResolvedValue(mockCartResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: 0.5 }],
+          },
+        ],
+      };
+      const result = await client.calculateCart(request);
+      expect(result).toEqual(mockCartResponse);
+    });
+
+    it('should accept optional taxabilityCode on line items', async () => {
+      mockHttpClient.post.mockResolvedValue(mockCartResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            lineItems: [
+              {
+                itemId: 'item-1',
+                price: 10.0,
+                quantity: 1.0,
+                taxabilityCode: 0,
+              },
+              {
+                itemId: 'item-2',
+                price: 20.0,
+                quantity: 1.0,
+                // No taxabilityCode - should be accepted
+              },
+            ],
+          },
+        ],
+      };
+      const result = await client.calculateCart(request);
+      expect(result).toEqual(mockCartResponse);
     });
   });
 });
