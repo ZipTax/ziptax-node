@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2-beta] - 2026-03-11
+
+### Added
+- `createOrderFromCart()` - Create a TaxCloud order from a previously calculated cart, converting an existing cart (via `calculateCart` with TaxCloud credentials) into a finalized order for tax filing
+- `CreateOrderFromCartRequest` type with `cartId` and `orderId` fields
+- `calculateCart()` - Calculate sales tax for a shopping cart with dual routing:
+  - Routes to TaxCloud API when TaxCloud credentials are configured
+  - Routes to ZipTax API when only ZipTax credentials are configured
+- Address parsing utility (`parseAddressString`) for transforming single-string addresses into structured TaxCloud format
+- Cart request validation (items count, line item limits, currency, addresses, price/quantity)
+- `TaxCloudCalculateCartResponse`, `TaxCloudCartItemResponse`, and `TaxCloudCartLineItemResponse` types for TaxCloud cart calculation responses
+- `CalculateCartRequest`, `CalculateCartResponse`, and related cart types for ZipTax cart calculation
+
+### Fixed
+- Price and quantity validation now rejects `NaN` and `Infinity` values in cart line items
+
 ## [0.2.0-beta] - 2026-02-16
 
 ### Added
