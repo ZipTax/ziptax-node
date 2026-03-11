@@ -337,9 +337,9 @@ resources:
                   to: "index (number, required by TaxCloud)"
                   note: "Auto-generate index from the line item's position in the array (0-based)"
                 - field: "items[].currency.currencyCode"
-                  from: "'USD'"
+                  from: "'USD' or 'CAD'"
                   to: "currencyCode (string, 'USD' or 'CAD')"
-                  note: "Pass through as-is; both APIs accept USD"
+                  note: "Pass through as-is; both APIs accept USD and CAD"
                 - field: "transactionDate"
                   from: "(not present in CalculateCartRequest)"
                   to: "transactionDate (optional RFC3339 datetime)"
@@ -369,7 +369,7 @@ resources:
         validation:
           cart:
             - "items array must contain exactly 1 cart element"
-            - "currency.currencyCode must be 'USD'"
+            - "currency.currencyCode must be 'USD' or 'CAD'"
             - "customerId is required (string)"
             - "destination.address is required (string)"
             - "origin.address is required (string)"
@@ -1165,7 +1165,7 @@ models:
       - name: "currency"
         type: "CartCurrency"
         required: true
-        description: "Currency information (must be USD)"
+        description: "Currency information (USD or CAD)"
       - name: "destination"
         type: "CartAddress"
         required: true
@@ -1200,8 +1200,8 @@ models:
       - name: "currencyCode"
         type: "string"
         required: true
-        description: "ISO currency code (must be USD)"
-        enum: ["USD"]
+        description: "ISO currency code (USD or CAD)"
+        enum: ["USD", "CAD"]
         example: "USD"
 
   - name: "CartLineItem"

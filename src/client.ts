@@ -211,8 +211,8 @@ export class ZiptaxClient {
     validateRequired(cart.currency, 'currency');
     validateRequired(cart.currency.currencyCode, 'currency.currencyCode');
 
-    if (cart.currency.currencyCode !== 'USD') {
-      throw new ZiptaxValidationError("currency.currencyCode must be 'USD'");
+    if (cart.currency.currencyCode !== 'USD' && cart.currency.currencyCode !== 'CAD') {
+      throw new ZiptaxValidationError("currency.currencyCode must be 'USD' or 'CAD'");
     }
 
     validateRequired(cart.destination, 'destination');
