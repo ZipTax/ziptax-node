@@ -3,9 +3,11 @@
  */
 
 import { ZiptaxClient } from '../src/client';
-import { ZiptaxConfigurationError } from '../src/exceptions';
+import { ZiptaxConfigurationError, ZiptaxValidationError } from '../src/exceptions';
 import { HTTPClient } from '../src/utils/http';
 import {
+  CalculateCartRequest,
+  TaxCloudCalculateCartResponse,
   CreateOrderRequest,
   OrderResponse,
   UpdateOrderRequest,
@@ -360,6 +362,254 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
         taxCloudConnectionId: '25eb9b97-5acb-492d-b720-c03e79cf715a',
         taxCloudAPIKey: 'test-taxcloud-key',
       });
+    });
+  });
+
+  describe('calculateCart - TaxCloud routing', () => {
+    const validCartRequest: CalculateCartRequest = {
+      items: [
+        {
+          customerId: 'customer-453',
+          currency: { currencyCode: 'USD' },
+          destination: {
+            address: '200 Spectrum Center Dr, Irvine, CA 92618-1905',
+          },
+          origin: {
+            address: '323 Washington Ave N, Minneapolis, MN 55401-2427',
+          },
+          lineItems: [
+            {
+              itemId: 'item-1',
+              price: 10.75,
+              quantity: 1.5,
+            },
+            {
+              itemId: 'item-2',
+              price: 25.0,
+              quantity: 2.0,
+              taxabilityCode: 0,
+            },
+          ],
+        },
+      ],
+    };
+
+    const mockTaxCloudCartResponse: TaxCloudCalculateCartResponse = {
+      connectionId: '25eb9b97-5acb-492d-b720-c03e79cf715a',
+      items: [
+        {
+          cartId: 'ce4a1234-5678-90ab-cdef-1234567890ab',
+          customerId: 'customer-453',
+          currency: { currencyCode: 'USD' },
+          deliveredBySeller: false,
+          destination: {
+            line1: '200 Spectrum Center Dr',
+            city: 'Irvine',
+            state: 'CA',
+            zip: '92618-1905',
+            countryCode: 'US',
+          },
+          origin: {
+            line1: '323 Washington Ave N',
+            city: 'Minneapolis',
+            state: 'MN',
+            zip: '55401-2427',
+            countryCode: 'US',
+          },
+          exemption: {
+            exemptionId: null,
+            isExempt: null,
+          },
+          lineItems: [
+            {
+              index: 0,
+              itemId: 'item-1',
+              price: 10.75,
+              quantity: 1.5,
+              tax: { amount: 1.46, rate: 0.0903 },
+              tic: 0,
+            },
+            {
+              index: 1,
+              itemId: 'item-2',
+              price: 25.0,
+              quantity: 2.0,
+              tax: { amount: 4.52, rate: 0.0903 },
+              tic: 0,
+            },
+          ],
+        },
+      ],
+      transactionDate: '2024-01-15T09:30:00Z',
+    };
+
+    it('should route to TaxCloud when credentials are configured', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      const result = await client.calculateCart(validCartRequest);
+
+      expect(result).toEqual(mockTaxCloudCartResponse);
+      // Should use TaxCloud HTTP client, not ZipTax
+      expect(mockTaxCloudHttpClient.post).toHaveBeenCalled();
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
+    });
+
+    it('should POST to correct TaxCloud path', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      await client.calculateCart(validCartRequest);
+
+      expect(mockTaxCloudHttpClient.post).toHaveBeenCalledWith(
+        '/tax/connections/25eb9b97-5acb-492d-b720-c03e79cf715a/carts',
+        expect.any(Object)
+      );
+    });
+
+    it('should transform destination address to structured format', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      await client.calculateCart(validCartRequest);
+
+      const callArgs = mockTaxCloudHttpClient.post.mock.calls[0];
+      const body = callArgs[1] as Record<string, unknown>;
+      const items = body.items as Record<string, unknown>[];
+      const dest = items[0].destination as Record<string, string>;
+
+      expect(dest.line1).toBe('200 Spectrum Center Dr');
+      expect(dest.city).toBe('Irvine');
+      expect(dest.state).toBe('CA');
+      expect(dest.zip).toBe('92618-1905');
+      expect(dest.countryCode).toBe('US');
+    });
+
+    it('should transform origin address to structured format', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      await client.calculateCart(validCartRequest);
+
+      const callArgs = mockTaxCloudHttpClient.post.mock.calls[0];
+      const body = callArgs[1] as Record<string, unknown>;
+      const items = body.items as Record<string, unknown>[];
+      const origin = items[0].origin as Record<string, string>;
+
+      expect(origin.line1).toBe('323 Washington Ave N');
+      expect(origin.city).toBe('Minneapolis');
+      expect(origin.state).toBe('MN');
+      expect(origin.zip).toBe('55401-2427');
+      expect(origin.countryCode).toBe('US');
+    });
+
+    it('should map taxabilityCode to tic field (defaults to 0)', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      await client.calculateCart(validCartRequest);
+
+      const callArgs = mockTaxCloudHttpClient.post.mock.calls[0];
+      const body = callArgs[1] as Record<string, unknown>;
+      const items = body.items as Record<string, unknown>[];
+      const lineItems = items[0].lineItems as Record<string, unknown>[];
+
+      // item-1 has no taxabilityCode -> tic defaults to 0
+      expect(lineItems[0].tic).toBe(0);
+      // item-2 has taxabilityCode=0 -> tic is 0
+      expect(lineItems[1].tic).toBe(0);
+    });
+
+    it('should add 0-based index to line items', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      await client.calculateCart(validCartRequest);
+
+      const callArgs = mockTaxCloudHttpClient.post.mock.calls[0];
+      const body = callArgs[1] as Record<string, unknown>;
+      const items = body.items as Record<string, unknown>[];
+      const lineItems = items[0].lineItems as Record<string, unknown>[];
+
+      expect(lineItems[0].index).toBe(0);
+      expect(lineItems[1].index).toBe(1);
+    });
+
+    it('should pass through currency code', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      await client.calculateCart(validCartRequest);
+
+      const callArgs = mockTaxCloudHttpClient.post.mock.calls[0];
+      const body = callArgs[1] as Record<string, unknown>;
+      const items = body.items as Record<string, unknown>[];
+      const currency = items[0].currency as Record<string, string>;
+
+      expect(currency.currencyCode).toBe('USD');
+    });
+
+    it('should pass through customerId', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      await client.calculateCart(validCartRequest);
+
+      const callArgs = mockTaxCloudHttpClient.post.mock.calls[0];
+      const body = callArgs[1] as Record<string, unknown>;
+      const items = body.items as Record<string, unknown>[];
+
+      expect(items[0].customerId).toBe('customer-453');
+    });
+
+    it('should throw validation error for unparseable address', async () => {
+      const badRequest: CalculateCartRequest = {
+        items: [
+          {
+            customerId: 'customer-453',
+            currency: { currencyCode: 'USD' },
+            destination: { address: 'bad address' },
+            origin: {
+              address: '323 Washington Ave N, Minneapolis, MN 55401-2427',
+            },
+            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: 1.0 }],
+          },
+        ],
+      };
+
+      await expect(client.calculateCart(badRequest)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should route to ZipTax when TaxCloud is not configured', async () => {
+      const clientWithoutTaxCloud = new ZiptaxClient({
+        apiKey: 'test-api-key',
+      });
+
+      // Reset the mock for the ZipTax HTTP client
+      mockHttpClient.post = jest.fn().mockResolvedValue({
+        items: [
+          {
+            cartId: 'test-cart-id',
+            customerId: 'customer-453',
+            destination: { address: 'test' },
+            origin: { address: 'test' },
+            lineItems: [],
+          },
+        ],
+      });
+
+      await clientWithoutTaxCloud.calculateCart(validCartRequest);
+
+      expect(mockHttpClient.post).toHaveBeenCalledWith('/calculate/cart', validCartRequest);
+    });
+
+    it('should return TaxCloudCalculateCartResponse structure', async () => {
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockTaxCloudCartResponse);
+
+      const result = (await client.calculateCart(
+        validCartRequest
+      )) as TaxCloudCalculateCartResponse;
+
+      expect(result.connectionId).toBe('25eb9b97-5acb-492d-b720-c03e79cf715a');
+      expect(result.transactionDate).toBe('2024-01-15T09:30:00Z');
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].cartId).toBe('ce4a1234-5678-90ab-cdef-1234567890ab');
+      expect(result.items[0].deliveredBySeller).toBe(false);
+      expect(result.items[0].exemption.exemptionId).toBeNull();
+      expect(result.items[0].lineItems).toHaveLength(2);
+      expect(result.items[0].lineItems[0].tic).toBe(0);
     });
   });
 });

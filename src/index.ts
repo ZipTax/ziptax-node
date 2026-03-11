@@ -31,6 +31,15 @@ export type {
   V60PostalCodeResult,
   V60PostalCodeAddressDetail,
   V60AccountMetrics,
+  CartAddress,
+  CartCurrency,
+  CartLineItem,
+  CartItem,
+  CalculateCartRequest,
+  CartTax,
+  CartLineItemResponse,
+  CartItemResponse,
+  CalculateCartResponse,
 } from './models';
 
 // Export TaxCloud models
@@ -51,6 +60,9 @@ export type {
   UpdateOrderRequest,
   RefundTransactionRequest,
   RefundTransactionResponse,
+  TaxCloudCartLineItemResponse,
+  TaxCloudCartItemResponse,
+  TaxCloudCalculateCartResponse,
 } from './models';
 
 // Export exceptions

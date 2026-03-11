@@ -256,3 +256,110 @@ export interface V60AccountMetrics {
   /** Account status or informational message */
   message: string;
 }
+
+// ---------------------------------------------------------------------------
+// Cart Tax Calculation Models (ZipTax API)
+// ---------------------------------------------------------------------------
+
+/**
+ * Simple address structure for cart tax calculation (single string format)
+ */
+export interface CartAddress {
+  /** Full address string for geocoding */
+  address: string;
+}
+
+/**
+ * Currency information for cart request
+ */
+export interface CartCurrency {
+  /** ISO currency code (must be USD) */
+  currencyCode: 'USD';
+}
+
+/**
+ * A line item in the cart request with product details for tax calculation
+ */
+export interface CartLineItem {
+  /** Unique identifier for the line item */
+  itemId: string;
+  /** Unit price of the item (must be positive, greater than 0) */
+  price: number;
+  /** Quantity of the item (must be positive, greater than 0) */
+  quantity: number;
+  /** Taxability code for product-specific tax rules (optional) */
+  taxabilityCode?: number;
+}
+
+/**
+ * A single cart containing customer info, addresses, currency, and line items
+ */
+export interface CartItem {
+  /** Customer identifier */
+  customerId: string;
+  /** Currency information (must be USD) */
+  currency: CartCurrency;
+  /** Destination address used for tax calculation */
+  destination: CartAddress;
+  /** Origin address of the seller/shipper */
+  origin: CartAddress;
+  /** Array of line items in the cart (1-250 items) */
+  lineItems: CartLineItem[];
+}
+
+/**
+ * Request payload for calculating sales tax on a shopping cart.
+ * Wraps a single cart item in an 'items' array.
+ */
+export interface CalculateCartRequest {
+  /** Array of cart items (must contain exactly 1 element) */
+  items: CartItem[];
+}
+
+/**
+ * Calculated tax details for a cart line item
+ */
+export interface CartTax {
+  /** Calculated sales tax rate */
+  rate: number;
+  /** Calculated tax amount: (price x quantity) x rate */
+  amount: number;
+}
+
+/**
+ * A line item in the cart response with calculated tax rate and amount
+ */
+export interface CartLineItemResponse {
+  /** Unique identifier for the line item (echoed from request) */
+  itemId: string;
+  /** Unit price of the item (echoed from request) */
+  price: number;
+  /** Quantity of the item (echoed from request) */
+  quantity: number;
+  /** Calculated tax information for this line item */
+  tax: CartTax;
+}
+
+/**
+ * A single cart response with calculated tax information per line item
+ */
+export interface CartItemResponse {
+  /** Server-generated UUID identifying this cart calculation */
+  cartId: string;
+  /** Customer identifier (echoed from request) */
+  customerId: string;
+  /** Destination address (echoed from request) */
+  destination: CartAddress;
+  /** Origin address (echoed from request) */
+  origin: CartAddress;
+  /** Array of line items with calculated tax information */
+  lineItems: CartLineItemResponse[];
+}
+
+/**
+ * Response from cart tax calculation containing per-item tax details
+ */
+export interface CalculateCartResponse {
+  /** Array of cart results (mirrors request items array order) */
+  items: CartItemResponse[];
+}
