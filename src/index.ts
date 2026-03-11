@@ -56,6 +56,7 @@ export type {
   CartItemRefundWithTaxRequest,
   CartItemRefundWithTaxResponse,
   CreateOrderRequest,
+  CreateOrderFromCartRequest,
   OrderResponse,
   UpdateOrderRequest,
   RefundTransactionRequest,

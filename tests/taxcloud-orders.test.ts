@@ -9,6 +9,7 @@ import {
   CalculateCartRequest,
   TaxCloudCalculateCartResponse,
   CreateOrderRequest,
+  CreateOrderFromCartRequest,
   OrderResponse,
   UpdateOrderRequest,
   RefundTransactionRequest,
@@ -350,6 +351,58 @@ describe('ZiptaxClient - TaxCloud Orders', () => {
       };
 
       await expect(client.refundOrder('', refundRequest)).rejects.toThrow();
+    });
+  });
+
+  describe('createOrderFromCart', () => {
+    it('should create an order from a cart successfully', async () => {
+      const request: CreateOrderFromCartRequest = {
+        cartId: 'ce4a1234-5678-90ab-cdef-1234567890ab',
+        orderId: 'my-order-1',
+      };
+
+      mockTaxCloudHttpClient.post = jest.fn().mockResolvedValue(mockOrderResponse);
+
+      const result = await client.createOrderFromCart(request);
+
+      expect(result).toEqual(mockOrderResponse);
+      expect(mockTaxCloudHttpClient.post).toHaveBeenCalledWith(
+        '/tax/connections/25eb9b97-5acb-492d-b720-c03e79cf715a/carts/orders',
+        request
+      );
+    });
+
+    it('should throw ZiptaxConfigurationError when TaxCloud credentials are not configured', async () => {
+      const clientWithoutTaxCloud = new ZiptaxClient({
+        apiKey: 'test-api-key',
+      });
+
+      const request: CreateOrderFromCartRequest = {
+        cartId: 'ce4a1234-5678-90ab-cdef-1234567890ab',
+        orderId: 'my-order-1',
+      };
+
+      await expect(clientWithoutTaxCloud.createOrderFromCart(request)).rejects.toThrow(
+        ZiptaxConfigurationError
+      );
+    });
+
+    it('should validate cartId is required', async () => {
+      const request = {
+        cartId: '',
+        orderId: 'my-order-1',
+      } as CreateOrderFromCartRequest;
+
+      await expect(client.createOrderFromCart(request)).rejects.toThrow();
+    });
+
+    it('should validate orderId is required', async () => {
+      const request = {
+        cartId: 'ce4a1234-5678-90ab-cdef-1234567890ab',
+        orderId: '',
+      } as CreateOrderFromCartRequest;
+
+      await expect(client.createOrderFromCart(request)).rejects.toThrow();
     });
   });
 
