@@ -27,6 +27,7 @@ import {
   CalculateCartResponse,
   TaxCloudCalculateCartResponse,
   CreateOrderRequest,
+  CreateOrderFromCartRequest,
   OrderResponse,
   UpdateOrderRequest,
   RefundTransactionRequest,
@@ -210,8 +211,8 @@ export class ZiptaxClient {
     validateRequired(cart.currency, 'currency');
     validateRequired(cart.currency.currencyCode, 'currency.currencyCode');
 
-    if (cart.currency.currencyCode !== 'USD') {
-      throw new ZiptaxValidationError("currency.currencyCode must be 'USD'");
+    if (cart.currency.currencyCode !== 'USD' && cart.currency.currencyCode !== 'CAD') {
+      throw new ZiptaxValidationError("currency.currencyCode must be 'USD' or 'CAD'");
     }
 
     validateRequired(cart.destination, 'destination');
@@ -385,6 +386,27 @@ export class ZiptaxClient {
 
     // Empty or omitted items means full refund per TaxCloud API spec
     return this.taxCloudHttpClient!.post<RefundTransactionResponse[]>(path, request || {});
+  }
+
+  /**
+   * Create a TaxCloud order from a previously calculated cart.
+   * Converts an existing cart (created via calculateCart with TaxCloud
+   * credentials) into a finalized order for tax filing.
+   *
+   * @param request - Cart-to-order request containing cartId and orderId
+   * @returns OrderResponse with created order details
+   */
+  async createOrderFromCart(request: CreateOrderFromCartRequest): Promise<OrderResponse> {
+    this.verifyTaxCloudCredentials();
+
+    // Validate required fields
+    validateRequired(request.cartId, 'cartId');
+    validateRequired(request.orderId, 'orderId');
+
+    const connectionId = this.config.taxCloudConnectionId!;
+    const path = `/tax/connections/${connectionId}/carts/orders`;
+
+    return this.taxCloudHttpClient!.post<OrderResponse>(path, request);
   }
 
   /**

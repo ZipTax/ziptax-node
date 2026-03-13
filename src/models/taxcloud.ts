@@ -198,6 +198,18 @@ export interface UpdateOrderRequest {
 }
 
 /**
+ * Request to create an order from a previously calculated TaxCloud cart.
+ * The cartId comes from a previous calculateCart response
+ * (TaxCloudCartItemResponse.cartId) when TaxCloud credentials are configured.
+ */
+export interface CreateOrderFromCartRequest {
+  /** Cart ID from a previous TaxCloud calculateCart response */
+  cartId: string;
+  /** User's internal order ID for cross-referencing */
+  orderId: string;
+}
+
+/**
  * Request to refund an order
  * If items is empty or omitted, the entire order will be refunded.
  */

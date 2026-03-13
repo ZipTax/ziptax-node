@@ -471,6 +471,33 @@ describe('ZiptaxClient', () => {
       await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
     });
 
+    it('should accept CAD currency code', async () => {
+      mockHttpClient.post.mockResolvedValue({ items: [] });
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request: CalculateCartRequest = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            currency: { currencyCode: 'CAD' },
+          },
+        ],
+      };
+      await expect(client.calculateCart(request)).resolves.toBeDefined();
+    });
+
+    it('should throw error for invalid currency code', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const request = {
+        items: [
+          {
+            ...validCartRequest.items[0],
+            currency: { currencyCode: 'EUR' },
+          },
+        ],
+      } as unknown as CalculateCartRequest;
+      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+    });
+
     it('should throw error for missing destination address', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
       const request: CalculateCartRequest = {

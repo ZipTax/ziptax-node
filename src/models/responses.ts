@@ -273,8 +273,8 @@ export interface CartAddress {
  * Currency information for cart request
  */
 export interface CartCurrency {
-  /** ISO currency code (must be USD) */
-  currencyCode: 'USD';
+  /** ISO currency code (USD or CAD) */
+  currencyCode: 'USD' | 'CAD';
 }
 
 /**
@@ -297,7 +297,7 @@ export interface CartLineItem {
 export interface CartItem {
   /** Customer identifier */
   customerId: string;
-  /** Currency information (must be USD) */
+  /** Currency information (USD or CAD) */
   currency: CartCurrency;
   /** Destination address used for tax calculation */
   destination: CartAddress;
