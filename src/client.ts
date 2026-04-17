@@ -9,6 +9,7 @@ import {
   validateRequired,
   validateMaxLength,
   validatePattern,
+  validateProductQuery,
   parseAddressString,
 } from './utils/validation';
 import {
@@ -32,6 +33,9 @@ import {
   UpdateOrderRequest,
   RefundTransactionRequest,
   RefundTransactionResponse,
+  ProductCodeSearchRequest,
+  ProductCodeSearchResponse,
+  ProductCodeRecommendationResponse,
 } from './models';
 
 /**
@@ -169,6 +173,73 @@ export class ZiptaxClient {
     return this.httpClient.get<V60AccountMetrics>('/account/v60/metrics', {
       params: params?.format ? { format: params.format } : undefined,
     });
+  }
+
+  /**
+   * Search for product codes (TICs) by natural language description.
+   * Returns all matching Taxability Information Codes ranked and scored
+   * by relevance.
+   *
+   * Use the returned ticId as the taxabilityCode parameter in rate requests
+   * or cart line items. For v60 rate requests (e.g., getSalesTaxByAddress),
+   * pass ticId as a string. For cart line items, convert to number.
+   *
+   * @param query - Natural language product description
+   *   (e.g., "baked goods sold in plastic packaging")
+   * @returns ProductCodeSearchResponse with ranked search results
+   *
+   * @example
+   * ```typescript
+   * const response = await client.searchProductCodes(
+   *   "baked goods sold in plastic packaging"
+   * );
+   * for (const result of response.results) {
+   *   console.log(`${result.ticId}: ${result.label} (score=${result.score})`);
+   * }
+   * ```
+   */
+  async searchProductCodes(query: string): Promise<ProductCodeSearchResponse> {
+    validateProductQuery(query);
+
+    const reqBody: ProductCodeSearchRequest = { query };
+
+    return this.httpClient.post<ProductCodeSearchResponse>('/search/tic', reqBody);
+  }
+
+  /**
+   * Get an AI-powered product code (TIC) recommendation.
+   * Returns a single best-match TIC code with higher accuracy than
+   * searchProductCodes. Has slightly higher latency due to the AI
+   * processing step.
+   *
+   * Use the returned ticId as the taxabilityCode parameter in rate requests
+   * or cart line items. For v60 rate requests (e.g., getSalesTaxByAddress),
+   * pass ticId as a string. For cart line items, convert to number.
+   *
+   * @param query - Natural language product description
+   *   (e.g., "baked goods sold in plastic packaging")
+   * @returns ProductCodeRecommendationResponse with AI-powered recommendation
+   *
+   * @example
+   * ```typescript
+   * const response = await client.recommendProductCode(
+   *   "baked goods sold in plastic packaging"
+   * );
+   * const prediction = response.predictions[0];
+   * if (prediction.status === "success") {
+   *   console.log(`Recommended TIC: ${prediction.ticId} (${prediction.label})`);
+   * }
+   * ```
+   */
+  async recommendProductCode(query: string): Promise<ProductCodeRecommendationResponse> {
+    validateProductQuery(query);
+
+    const reqBody: ProductCodeSearchRequest = { query };
+
+    return this.httpClient.post<ProductCodeRecommendationResponse>(
+      '/search/tic/recommend',
+      reqBody
+    );
   }
 
   /**

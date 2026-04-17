@@ -5,7 +5,12 @@
 import { ZiptaxClient } from '../src/client';
 import { ZiptaxValidationError } from '../src/exceptions';
 import { HTTPClient } from '../src/utils/http';
-import { CalculateCartRequest, CalculateCartResponse } from '../src/models';
+import {
+  CalculateCartRequest,
+  CalculateCartResponse,
+  ProductCodeSearchResponse,
+  ProductCodeRecommendationResponse,
+} from '../src/models';
 
 // Mock the HTTPClient
 jest.mock('../src/utils/http');
@@ -360,6 +365,214 @@ describe('ZiptaxClient', () => {
           format: 'xml',
         },
       });
+    });
+  });
+
+  describe('searchProductCodes', () => {
+    const mockSearchResponse: ProductCodeSearchResponse = {
+      query: 'baked goods sold in plastic packaging',
+      results: [
+        {
+          ticId: '41030',
+          label: 'Bakery Items',
+          naturalLabel: 'Bakery Items',
+          description: 'Bakery items sold without eating utensils provided by the seller',
+          documentation:
+            'Bakery items sold without eating utensils provided by the seller, not sold as a prepared food',
+          rank: '1',
+          score: '0.891025641025641',
+        },
+        {
+          ticId: '40030',
+          label: 'Food and Food Ingredients',
+          naturalLabel: 'Food and Food Ingredients',
+          description: 'Food and food ingredients for human consumption',
+          documentation:
+            'Food and food ingredients for human consumption that are not candy, dietary supplements, or soft drinks',
+          rank: '2',
+          score: '0.750512820512821',
+        },
+      ],
+    };
+
+    it('should search product codes with valid query', async () => {
+      mockHttpClient.post.mockResolvedValue(mockSearchResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.searchProductCodes('baked goods sold in plastic packaging');
+
+      expect(result).toEqual(mockSearchResponse);
+      expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic', {
+        query: 'baked goods sold in plastic packaging',
+      });
+    });
+
+    it('should POST to /search/tic', async () => {
+      mockHttpClient.post.mockResolvedValue(mockSearchResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await client.searchProductCodes('test query');
+
+      expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic', {
+        query: 'test query',
+      });
+    });
+
+    it('should return correct response structure with multiple results', async () => {
+      mockHttpClient.post.mockResolvedValue(mockSearchResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.searchProductCodes('baked goods');
+
+      expect(result.query).toBe('baked goods sold in plastic packaging');
+      expect(result.results).toHaveLength(2);
+      expect(result.results[0].ticId).toBe('41030');
+      expect(result.results[0].label).toBe('Bakery Items');
+      expect(result.results[0].naturalLabel).toBe('Bakery Items');
+      expect(result.results[0].description).toContain('Bakery items');
+      expect(result.results[0].documentation).toContain('Bakery items');
+      expect(result.results[0].rank).toBe('1');
+      expect(result.results[0].score).toBe('0.891025641025641');
+      expect(result.results[1].ticId).toBe('40030');
+      expect(result.results[1].rank).toBe('2');
+    });
+
+    it('should handle empty results list', async () => {
+      const emptyResponse: ProductCodeSearchResponse = {
+        query: 'nonexistent product',
+        results: [],
+      };
+      mockHttpClient.post.mockResolvedValue(emptyResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.searchProductCodes('nonexistent product');
+
+      expect(result.results).toHaveLength(0);
+    });
+
+    it('should throw error for empty query', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.searchProductCodes('')).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for whitespace-only query', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.searchProductCodes('   ')).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for query exceeding 500 characters', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const longQuery = 'a'.repeat(501);
+      await expect(client.searchProductCodes(longQuery)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should accept query at exactly 500 characters', async () => {
+      mockHttpClient.post.mockResolvedValue(mockSearchResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const query = 'a'.repeat(500);
+      await expect(client.searchProductCodes(query)).resolves.toBeDefined();
+    });
+  });
+
+  describe('recommendProductCode', () => {
+    const mockRecommendResponse: ProductCodeRecommendationResponse = {
+      predictions: [
+        {
+          status: 'success',
+          error: null,
+          ticId: '41030',
+          label: 'Bakery Items',
+          naturalLabel: 'Bakery Items',
+          tic_description: 'Bakery items sold without eating utensils provided by the seller',
+          product_description: 'baked goods sold in plastic packaging',
+        },
+      ],
+    };
+
+    it('should recommend product code with valid query', async () => {
+      mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.recommendProductCode('baked goods sold in plastic packaging');
+
+      expect(result).toEqual(mockRecommendResponse);
+      expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic/recommend', {
+        query: 'baked goods sold in plastic packaging',
+      });
+    });
+
+    it('should POST to /search/tic/recommend', async () => {
+      mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await client.recommendProductCode('test query');
+
+      expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic/recommend', {
+        query: 'test query',
+      });
+    });
+
+    it('should return correct response structure', async () => {
+      mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.recommendProductCode('baked goods');
+
+      expect(result.predictions).toHaveLength(1);
+      const prediction = result.predictions[0];
+      expect(prediction.status).toBe('success');
+      expect(prediction.error).toBeNull();
+      expect(prediction.ticId).toBe('41030');
+      expect(prediction.label).toBe('Bakery Items');
+      expect(prediction.naturalLabel).toBe('Bakery Items');
+      expect(prediction.tic_description).toContain('Bakery items');
+      expect(prediction.product_description).toBe('baked goods sold in plastic packaging');
+    });
+
+    it('should handle prediction with error status', async () => {
+      const errorResponse: ProductCodeRecommendationResponse = {
+        predictions: [
+          {
+            status: 'fail',
+            error: 'Unable to determine product code',
+            ticId: '',
+            label: '',
+            naturalLabel: '',
+            tic_description: '',
+            product_description: 'some vague description',
+          },
+        ],
+      };
+      mockHttpClient.post.mockResolvedValue(errorResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.recommendProductCode('some vague description');
+
+      expect(result.predictions[0].status).toBe('fail');
+      expect(result.predictions[0].error).toBe('Unable to determine product code');
+    });
+
+    it('should throw error for empty query', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.recommendProductCode('')).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for whitespace-only query', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.recommendProductCode('  \t\n  ')).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw error for query exceeding 500 characters', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const longQuery = 'a'.repeat(501);
+      await expect(client.recommendProductCode(longQuery)).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should accept query at exactly 500 characters', async () => {
+      mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      const query = 'a'.repeat(500);
+      await expect(client.recommendProductCode(query)).resolves.toBeDefined();
     });
   });
 
