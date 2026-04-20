@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3-beta] - 2026-04-17
+
+### Added
+- `searchProductCodes()` - Search for product codes (TICs) by natural language description, returning all matching Taxability Information Codes ranked and scored by relevance
+- `recommendProductCode()` - Get an AI-powered product code (TIC) recommendation with higher accuracy than the standard search
+- `ProductCodeSearchRequest`, `ProductCodeSearchResult`, `ProductCodeSearchResponse` types for TIC search
+- `ProductCodeRecommendation`, `ProductCodeRecommendationResponse` types for TIC recommendation
+- `validateProductQuery()` validation helper for product query inputs (non-empty, max 500 characters)
+
 ## [0.2.2-beta] - 2026-03-11
 
 ### Added

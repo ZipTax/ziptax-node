@@ -363,3 +363,75 @@ export interface CalculateCartResponse {
   /** Array of cart results (mirrors request items array order) */
   items: CartItemResponse[];
 }
+
+// ---------------------------------------------------------------------------
+// Product Code (TIC) Search Models
+// ---------------------------------------------------------------------------
+
+/**
+ * Request payload for product code search and recommendation endpoints
+ */
+export interface ProductCodeSearchRequest {
+  /** Natural language product description to search */
+  query: string;
+}
+
+/**
+ * A single product code search result ranked and scored by relevance
+ */
+export interface ProductCodeSearchResult {
+  /** Taxability Information Code. Use as the taxabilityCode parameter
+   *  in rate requests or cart line items. */
+  ticId: string;
+  /** TIC label from the TIC data */
+  label: string;
+  /** Natural language label aligned with the full description */
+  naturalLabel: string;
+  /** Full description of the taxability code line item */
+  description: string;
+  /** Long-form documentation of the TIC code */
+  documentation: string;
+  /** Itemized rank for the result ("1" = best match) */
+  rank: string;
+  /** Confidence score ("0.0"-"1.0"), independent of rank */
+  score: string;
+}
+
+/**
+ * Response from the product code search endpoint
+ */
+export interface ProductCodeSearchResponse {
+  /** Original search query sent in the request */
+  query: string;
+  /** Matching product codes ranked by relevance */
+  results: ProductCodeSearchResult[];
+}
+
+/**
+ * A single AI-powered product code recommendation
+ */
+export interface ProductCodeRecommendation {
+  /** Prediction result status ("success" or "fail") */
+  status: string;
+  /** Non-null error message when the prediction fails.
+   *  Only populated when status is "fail". */
+  error: string | null;
+  /** Recommended Taxability Information Code */
+  ticId: string;
+  /** TIC label from the TIC data */
+  label: string;
+  /** Natural language label aligned with the description */
+  naturalLabel: string;
+  /** Full description of the recommended TIC (snake_case to match API) */
+  tic_description: string;
+  /** Original product description sent in the query (snake_case to match API) */
+  product_description: string;
+}
+
+/**
+ * Response from the product code recommendation endpoint
+ */
+export interface ProductCodeRecommendationResponse {
+  /** AI-powered product code recommendations */
+  predictions: ProductCodeRecommendation[];
+}

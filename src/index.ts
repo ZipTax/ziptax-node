@@ -40,6 +40,11 @@ export type {
   CartLineItemResponse,
   CartItemResponse,
   CalculateCartResponse,
+  ProductCodeSearchRequest,
+  ProductCodeSearchResult,
+  ProductCodeSearchResponse,
+  ProductCodeRecommendation,
+  ProductCodeRecommendationResponse,
 } from './models';
 
 // Export TaxCloud models

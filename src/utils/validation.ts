@@ -120,3 +120,23 @@ export function parseAddressString(address: string): ParsedAddress {
     countryCode: 'US',
   };
 }
+
+/**
+ * Validate product description query for TIC search endpoints.
+ *
+ * @param query - Natural language product description to validate
+ * @throws ZiptaxValidationError if query is empty, not a string, or exceeds 500 characters
+ */
+export function validateProductQuery(query: string): void {
+  if (typeof query !== 'string') {
+    throw new ZiptaxValidationError('Product query must be a string');
+  }
+
+  if (!query || !query.trim()) {
+    throw new ZiptaxValidationError('Product query cannot be empty');
+  }
+
+  if (query.length > 500) {
+    throw new ZiptaxValidationError('Product query exceeds maximum length of 500 characters');
+  }
+}
