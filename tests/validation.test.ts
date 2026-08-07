@@ -8,7 +8,11 @@ import {
   validatePattern,
   validateEnum,
   validateApiKey,
-  parseAddressString,
+  validateUuid,
+  validateNumberRange,
+  validateHistorical,
+  validateProductQuery,
+  MAX_PRODUCT_QUERY_LENGTH,
 } from '../src/utils/validation';
 import { ZiptaxValidationError } from '../src/exceptions';
 
@@ -107,103 +111,101 @@ describe('Validation utilities', () => {
     });
   });
 
-  describe('parseAddressString', () => {
-    it('should parse a standard US address', () => {
-      const result = parseAddressString('200 Spectrum Center Dr, Irvine, CA 92618');
-      expect(result).toEqual({
-        line1: '200 Spectrum Center Dr',
-        city: 'Irvine',
-        state: 'CA',
-        zip: '92618',
-        countryCode: 'US',
-      });
+  describe('validateUuid', () => {
+    it('should pass for a valid UUID', () => {
+      expect(() =>
+        validateUuid('6b3c1f5e-2a8d-4c9b-9f2e-1d7a4b6c8e10', 'merchantId')
+      ).not.toThrow();
     });
 
-    it('should parse an address with ZIP+4', () => {
-      const result = parseAddressString('200 Spectrum Center Dr, Irvine, CA 92618-1905');
-      expect(result).toEqual({
-        line1: '200 Spectrum Center Dr',
-        city: 'Irvine',
-        state: 'CA',
-        zip: '92618-1905',
-        countryCode: 'US',
-      });
+    it('should pass for an uppercase UUID', () => {
+      expect(() =>
+        validateUuid('6B3C1F5E-2A8D-4C9B-9F2E-1D7A4B6C8E10', 'merchantId')
+      ).not.toThrow();
     });
 
-    it('should parse a Minneapolis address', () => {
-      const result = parseAddressString('323 Washington Ave N, Minneapolis, MN 55401-2427');
-      expect(result).toEqual({
-        line1: '323 Washington Ave N',
-        city: 'Minneapolis',
-        state: 'MN',
-        zip: '55401-2427',
-        countryCode: 'US',
-      });
-    });
-
-    it('should handle addresses with more than 3 comma segments', () => {
-      const result = parseAddressString('123 Main St, Suite 100, New York, NY 10001');
-      expect(result).toEqual({
-        line1: '123 Main St, Suite 100',
-        city: 'New York',
-        state: 'NY',
-        zip: '10001',
-        countryCode: 'US',
-      });
-    });
-
-    it('should uppercase state abbreviation', () => {
-      const result = parseAddressString('123 Main St, Portland, or 97201');
-      expect(result.state).toBe('OR');
-    });
-
-    it('should always return countryCode as US', () => {
-      const result = parseAddressString('123 Main St, Dallas, TX 75001');
-      expect(result.countryCode).toBe('US');
-    });
-
-    it('should throw for empty string', () => {
-      expect(() => parseAddressString('')).toThrow(ZiptaxValidationError);
-      expect(() => parseAddressString('')).toThrow('Address string cannot be empty');
-    });
-
-    it('should throw for whitespace-only string', () => {
-      expect(() => parseAddressString('   ')).toThrow(ZiptaxValidationError);
-      expect(() => parseAddressString('   ')).toThrow('Address string cannot be empty');
-    });
-
-    it('should throw for address with fewer than 3 segments', () => {
-      expect(() => parseAddressString('bad address')).toThrow(ZiptaxValidationError);
-      expect(() => parseAddressString('bad address')).toThrow(
-        'Cannot parse address into structured components'
+    it('should throw for a malformed UUID', () => {
+      expect(() => validateUuid('not-a-uuid', 'merchantId')).toThrow(ZiptaxValidationError);
+      expect(() => validateUuid('not-a-uuid', 'merchantId')).toThrow(
+        'merchantId must be a valid UUID'
       );
     });
 
-    it('should throw for address with only 2 segments', () => {
-      expect(() => parseAddressString('123 Main St, CA 90210')).toThrow(ZiptaxValidationError);
-      expect(() => parseAddressString('123 Main St, CA 90210')).toThrow(
-        'Expected at least 3 comma-separated parts'
-      );
-    });
-
-    it('should throw for invalid state/zip format', () => {
-      expect(() => parseAddressString('123 Main St, City, INVALID')).toThrow(ZiptaxValidationError);
-      expect(() => parseAddressString('123 Main St, City, INVALID')).toThrow(
-        'Cannot parse state and ZIP'
-      );
-    });
-
-    it('should throw for state/zip with no zip', () => {
-      expect(() => parseAddressString('123 Main St, City, CA')).toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw for state/zip with only 4-digit zip', () => {
-      expect(() => parseAddressString('123 Main St, City, CA 9201')).toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw for state with more than 2 letters', () => {
-      expect(() => parseAddressString('123 Main St, City, CAL 92618')).toThrow(
+    it('should throw for a UUID missing separators', () => {
+      expect(() => validateUuid('6b3c1f5e2a8d4c9b9f2e1d7a4b6c8e10', 'merchantId')).toThrow(
         ZiptaxValidationError
+      );
+    });
+
+    it('should throw for an empty value', () => {
+      expect(() => validateUuid('', 'merchantId')).toThrow('merchantId is required');
+    });
+
+    it('should throw for a non-string value', () => {
+      expect(() => validateUuid(42, 'merchantId')).toThrow(ZiptaxValidationError);
+    });
+  });
+
+  describe('validateNumberRange', () => {
+    it('should pass for a value inside the range', () => {
+      expect(() => validateNumberRange(0, -90, 90, 'lat')).not.toThrow();
+      expect(() => validateNumberRange(-90, -90, 90, 'lat')).not.toThrow();
+      expect(() => validateNumberRange(90, -90, 90, 'lat')).not.toThrow();
+    });
+
+    it('should throw for a value outside the range', () => {
+      expect(() => validateNumberRange(91, -90, 90, 'lat')).toThrow(
+        'lat must be between -90 and 90'
+      );
+    });
+
+    it('should throw for a non-finite value', () => {
+      expect(() => validateNumberRange(NaN, 0, 1, 'x')).toThrow('x must be a finite number');
+      expect(() => validateNumberRange(Infinity, 0, 1, 'x')).toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw for a non-number value', () => {
+      expect(() => validateNumberRange('5', 0, 10, 'x')).toThrow(ZiptaxValidationError);
+    });
+  });
+
+  describe('validateHistorical', () => {
+    it('should pass for YYYYMM', () => {
+      expect(() => validateHistorical('202401')).not.toThrow();
+    });
+
+    it('should throw for YYYY-MM', () => {
+      expect(() => validateHistorical('2024-01')).toThrow(ZiptaxValidationError);
+    });
+
+    it('should throw for a non-numeric value', () => {
+      expect(() => validateHistorical('janfeb')).toThrow(ZiptaxValidationError);
+    });
+  });
+
+  describe('validateProductQuery', () => {
+    it('should pass for a normal description', () => {
+      expect(() => validateProductQuery('baked bread in plastic packaging')).not.toThrow();
+    });
+
+    it('should accept a query at the maximum length', () => {
+      expect(() => validateProductQuery('a'.repeat(MAX_PRODUCT_QUERY_LENGTH))).not.toThrow();
+    });
+
+    it('should throw past the maximum length', () => {
+      expect(() => validateProductQuery('a'.repeat(MAX_PRODUCT_QUERY_LENGTH + 1))).toThrow(
+        `Product query exceeds maximum length of ${MAX_PRODUCT_QUERY_LENGTH} characters`
+      );
+    });
+
+    it('should throw for an empty or whitespace-only query', () => {
+      expect(() => validateProductQuery('')).toThrow('Product query cannot be empty');
+      expect(() => validateProductQuery('   ')).toThrow('Product query cannot be empty');
+    });
+
+    it('should throw for a non-string query', () => {
+      expect(() => validateProductQuery(42 as unknown as string)).toThrow(
+        'Product query must be a string'
       );
     });
   });

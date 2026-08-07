@@ -165,8 +165,11 @@ export class HTTPClient {
 
     const { status, data } = axiosError.response;
 
-    // Authentication errors
-    if (status === 401 || status === 403) {
+    // Authentication errors. 403 is deliberately excluded: on the Merchant
+    // endpoints it means the merchant is unknown, not owned by the account, or
+    // the operation is unavailable for a self-managed merchant, none of which
+    // are credential problems.
+    if (status === 401) {
       return new ZiptaxAuthenticationError(
         this.extractErrorMessage(data) || 'Authentication failed'
       );
@@ -190,20 +193,34 @@ export class HTTPClient {
   }
 
   /**
-   * Extract error message from response data
+   * Extract an error message from response data.
+   *
+   * Covers the three envelopes the API can return: the Ziptax-level
+   * `{ status, message }` shape, the operation-level
+   * `{ status, title, detail, error }` shape used by the Merchant endpoints,
+   * and RFC7807 `{ title, detail }` problem details.
    */
   private extractErrorMessage(data: unknown): string | undefined {
     if (typeof data === 'string') {
-      return data;
+      return data || undefined;
     }
-    if (typeof data === 'object' && data !== null) {
-      const obj = data as Record<string, unknown>;
-      if ('message' in obj && typeof obj.message === 'string') {
-        return obj.message;
-      }
-      if ('error' in obj && typeof obj.error === 'string') {
-        return obj.error;
-      }
+    if (typeof data !== 'object' || data === null) {
+      return undefined;
+    }
+
+    const obj = data as Record<string, unknown>;
+
+    if (typeof obj.message === 'string' && obj.message) {
+      return obj.message;
+    }
+    if (typeof obj.detail === 'string' && obj.detail) {
+      return obj.detail;
+    }
+    if (typeof obj.title === 'string' && obj.title) {
+      return obj.title;
+    }
+    if (typeof obj.error === 'string' && obj.error) {
+      return obj.error;
     }
     return undefined;
   }

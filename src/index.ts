@@ -9,37 +9,48 @@ export { ZiptaxClient } from './client';
 // Export configuration types
 export type {
   ZiptaxConfig,
+  RequestOptions,
+  MerchantEnvironment,
+  CountryCode,
+  RateAdjustment,
+  ResponseFormat,
+  CommonRateParams,
   GetSalesTaxByAddressParams,
   GetSalesTaxByGeoLocationParams,
   GetRatesByPostalCodeParams,
   GetAccountMetricsParams,
+  GetTicDataParams,
 } from './config';
 
-// Export ZipTax response models
+// Export rate lookup, account, system, and TIC models
 export type {
   V60Response,
   V60Metadata,
   V60ResponseInfo,
   V60BaseRate,
+  V60JurisdictionType,
   V60Service,
   V60Shipping,
+  V60ShippingExtended,
   V60SourcingRules,
   V60TaxSummary,
   V60DisplayRate,
   V60AddressDetail,
+  V60AddressComponents,
+  V60ProductDetail,
+  V60TaxabilityCode,
+  V60RateRule,
   V60PostalCodeResponse,
   V60PostalCodeResult,
   V60PostalCodeAddressDetail,
   V60AccountMetrics,
-  CartAddress,
-  CartCurrency,
-  CartLineItem,
-  CartItem,
-  CalculateCartRequest,
-  CartTax,
-  CartLineItemResponse,
-  CartItemResponse,
-  CalculateCartResponse,
+  AccountUsageMetrics,
+  HealthResponse,
+  HealthComponents,
+  SystemMetadataResponse,
+  TicData,
+  TicEntry,
+  TicDataResponse,
   ProductCodeSearchRequest,
   ProductCodeSearchResult,
   ProductCodeSearchResponse,
@@ -47,7 +58,26 @@ export type {
   ProductCodeRecommendationResponse,
 } from './models';
 
-// Export TaxCloud models
+// Export merchant management models
+export type {
+  MerchantType,
+  MerchantStatus,
+  Merchant,
+  MerchantUpdate,
+  MerchantMutationResponse,
+  CreateMerchantRequest,
+  CreateMerchantResponse,
+  UpdateMerchantRequest,
+  UpdateMerchantResponse,
+  DeleteMerchantResponse,
+  GetMerchantResponse,
+  ListMerchantsResponse,
+  SetMerchantCredentialsRequest,
+  SetMerchantCredentialsResponse,
+  DeleteMerchantCredentialsResponse,
+} from './models';
+
+// Export merchant transaction models
 export type {
   TaxCloudAddress,
   TaxCloudAddressResponse,
@@ -56,20 +86,62 @@ export type {
   Currency,
   CurrencyResponse,
   Exemption,
-  CartItemWithTax,
-  CartItemWithTaxResponse,
-  CartItemRefundWithTaxRequest,
-  CartItemRefundWithTaxResponse,
+  Discounts,
+  LineItemDiscount,
+  OrderLevelDiscount,
+  CartLineItem,
+  Cart,
+  CalculateCartRequest,
+  CartLineItemResponse,
+  CartResponse,
+  CalculateCartResponse,
+  SelfManagedCartResponse,
+  SelfManagedCalculateCartResponse,
+  AnyCalculateCartResponse,
+  OrderKind,
+  OrderLineItem,
   CreateOrderRequest,
   CreateOrderFromCartRequest,
-  OrderResponse,
+  GetOrderRequest,
   UpdateOrderRequest,
-  RefundTransactionRequest,
-  RefundTransactionResponse,
-  TaxCloudCartLineItemResponse,
-  TaxCloudCartItemResponse,
-  TaxCloudCalculateCartResponse,
+  OrderResponse,
+  RefundItem,
+  CreateRefundRequest,
+  RefundItemResponse,
+  RefundResponse,
+  CustomerBusinessType,
+  ExemptionReason,
+  ExemptState,
+  CreateCertificateRequest,
+  GetCertificateRequest,
+  DeleteCertificateRequest,
+  ListCertificatesRequest,
+  CertificateResponse,
+  ListCertificatesResponse,
 } from './models';
+
+// Export cart response type guard
+export { isTaxCloudCartResponse } from './models';
+
+// Export webhook models
+export type {
+  WebhookEventType,
+  WebhookLocality,
+  WebhookEvent,
+  RateUpdateDetail,
+  RateUpdatedData,
+  RateUpdatedEvent,
+  AnyWebhookEvent,
+} from './models';
+
+// Export webhook helpers
+export {
+  WEBHOOK_SIGNATURE_HEADER,
+  computeWebhookSignature,
+  verifyWebhookSignature,
+  parseWebhookEvent,
+  parseWebhookTimestamp,
+} from './utils/webhooks';
 
 // Export exceptions
 export {

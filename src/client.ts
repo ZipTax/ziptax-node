@@ -3,51 +3,80 @@
  */
 
 import { HTTPClient } from './utils/http';
-import { ZiptaxConfigurationError, ZiptaxValidationError } from './exceptions';
+import { ZiptaxValidationError } from './exceptions';
 import {
   validateApiKey,
   validateRequired,
   validateMaxLength,
   validatePattern,
+  validateHistorical,
+  validateNumberRange,
   validateProductQuery,
-  parseAddressString,
+  validateUuid,
 } from './utils/validation';
 import {
   ZiptaxConfig,
   DEFAULT_CONFIG,
+  RequestOptions,
+  MerchantEnvironment,
   GetSalesTaxByAddressParams,
   GetSalesTaxByGeoLocationParams,
   GetRatesByPostalCodeParams,
   GetAccountMetricsParams,
+  GetTicDataParams,
 } from './config';
 import {
   V60Response,
   V60PostalCodeResponse,
   V60AccountMetrics,
-  CalculateCartRequest,
-  CalculateCartResponse,
-  TaxCloudCalculateCartResponse,
-  CreateOrderRequest,
-  CreateOrderFromCartRequest,
-  OrderResponse,
-  UpdateOrderRequest,
-  RefundTransactionRequest,
-  RefundTransactionResponse,
+  AccountUsageMetrics,
+  HealthResponse,
+  SystemMetadataResponse,
+  TicDataResponse,
   ProductCodeSearchRequest,
   ProductCodeSearchResponse,
   ProductCodeRecommendationResponse,
+  CreateMerchantRequest,
+  CreateMerchantResponse,
+  UpdateMerchantRequest,
+  UpdateMerchantResponse,
+  DeleteMerchantResponse,
+  GetMerchantResponse,
+  ListMerchantsResponse,
+  SetMerchantCredentialsRequest,
+  SetMerchantCredentialsResponse,
+  DeleteMerchantCredentialsResponse,
+  CalculateCartRequest,
+  AnyCalculateCartResponse,
+  CreateOrderRequest,
+  CreateOrderFromCartRequest,
+  GetOrderRequest,
+  UpdateOrderRequest,
+  OrderResponse,
+  CreateRefundRequest,
+  RefundResponse,
+  CreateCertificateRequest,
+  GetCertificateRequest,
+  DeleteCertificateRequest,
+  ListCertificatesRequest,
+  CertificateResponse,
+  ListCertificatesResponse,
 } from './models';
+
+/** Maximum carts accepted in a single cart calculation request */
+const MAX_CARTS_PER_REQUEST = 100;
+/** Maximum line-item index accepted by the API */
+const MAX_LINE_ITEM_INDEX = 500;
+/** Maximum quantity accepted per line item */
+const MAX_LINE_ITEM_QUANTITY = 99999.9999;
 
 /**
  * ZipTax API client
  */
 export class ZiptaxClient {
   private readonly httpClient: HTTPClient;
-  private readonly taxCloudHttpClient?: HTTPClient;
-  private readonly config: Required<
-    Omit<ZiptaxConfig, 'retryOptions' | 'taxCloudConnectionId' | 'taxCloudAPIKey'>
-  > &
-    Pick<ZiptaxConfig, 'retryOptions' | 'taxCloudConnectionId' | 'taxCloudAPIKey'>;
+  private readonly config: Required<Omit<ZiptaxConfig, 'retryOptions'>> &
+    Pick<ZiptaxConfig, 'retryOptions'>;
 
   /**
    * Create a new ZipTax client instance
@@ -71,18 +100,11 @@ export class ZiptaxClient {
       retryOptions: this.config.retryOptions,
       enableLogging: this.config.enableLogging,
     });
-
-    // Initialize TaxCloud HTTP client if credentials are provided
-    if (config.taxCloudConnectionId && config.taxCloudAPIKey) {
-      this.taxCloudHttpClient = new HTTPClient({
-        baseURL: 'https://api.v3.taxcloud.com',
-        apiKey: config.taxCloudAPIKey,
-        timeout: this.config.timeout,
-        retryOptions: this.config.retryOptions,
-        enableLogging: this.config.enableLogging,
-      });
-    }
   }
+
+  // -------------------------------------------------------------------------
+  // Rate lookups
+  // -------------------------------------------------------------------------
 
   /**
    * Get sales and use tax rate details from an address input
@@ -90,27 +112,28 @@ export class ZiptaxClient {
    * @returns V60Response with tax rate details
    */
   async getSalesTaxByAddress(params: GetSalesTaxByAddressParams): Promise<V60Response> {
-    // Validate required parameters
     validateRequired(params.address, 'address');
     validateMaxLength(params.address, 100, 'address');
 
-    // Validate optional parameters
-    if (params.taxabilityCode) {
-      validatePattern(params.taxabilityCode, /^[0-9]+$/, 'taxabilityCode', 'numeric string');
+    this.validateCommonRateParams(params);
+
+    if (params.stateCode) {
+      validatePattern(params.stateCode, /^[A-Za-z]{2}$/, 'stateCode', 'two-letter state code');
     }
 
-    if (params.historical) {
-      validatePattern(params.historical, /^[0-9]{6}$/, 'historical', 'YYYYMM format');
+    if (params.satItemTotal !== undefined) {
+      validateNumberRange(params.satItemTotal, 0, Number.MAX_SAFE_INTEGER, 'satItemTotal');
     }
 
-    // Make API request
-    return this.httpClient.get<V60Response>('/request/v60/', {
+    return this.httpClient.get<V60Response>('/request/v60', {
       params: {
         address: params.address,
-        taxabilityCode: params.taxabilityCode,
-        countryCode: params.countryCode || 'USA',
-        historical: params.historical,
-        format: params.format || 'json',
+        city: params.city,
+        state: params.state,
+        stateCode: params.stateCode ? params.stateCode.toUpperCase() : undefined,
+        county: params.county,
+        sat_item_total: params.satItemTotal,
+        ...this.commonRateQuery(params),
       },
     });
   }
@@ -121,51 +144,53 @@ export class ZiptaxClient {
    * @returns V60Response with tax rate details
    */
   async getSalesTaxByGeoLocation(params: GetSalesTaxByGeoLocationParams): Promise<V60Response> {
-    // Validate required parameters
     validateRequired(params.lat, 'lat');
     validateRequired(params.lng, 'lng');
-    validateMaxLength(params.lat, 100, 'lat');
-    validateMaxLength(params.lng, 100, 'lng');
+    validateNumberRange(params.lat, -90, 90, 'lat');
+    validateNumberRange(params.lng, -180, 180, 'lng');
 
-    // Validate optional parameters
-    if (params.historical) {
-      validatePattern(params.historical, /^[0-9]{6}$/, 'historical', 'YYYYMM format');
-    }
+    this.validateCommonRateParams(params);
 
-    // Make API request
-    return this.httpClient.get<V60Response>('/request/v60/', {
+    return this.httpClient.get<V60Response>('/request/v60', {
       params: {
         lat: params.lat,
         lng: params.lng,
-        countryCode: params.countryCode || 'USA',
-        historical: params.historical,
-        format: params.format || 'json',
+        ...this.commonRateQuery(params),
       },
     });
   }
 
   /**
-   * Get sales and use tax rate details from a postal code input
+   * Get sales and use tax rate details from a postal code input.
+   *
+   * A postal-code-only lookup can overlap several jurisdictions, so this
+   * returns the legacy multi-result shape rather than a single resolved rate.
+   *
    * @param params - Query parameters
    * @returns V60PostalCodeResponse with tax rate details
    */
   async getRatesByPostalCode(params: GetRatesByPostalCodeParams): Promise<V60PostalCodeResponse> {
-    // Validate required parameters
     validateRequired(params.postalcode, 'postalcode');
     validateMaxLength(params.postalcode, 5, 'postalcode');
     validatePattern(params.postalcode, /^[0-9]{5}$/, 'postalcode', '5-digit format');
 
-    // Make API request
-    return this.httpClient.get<V60PostalCodeResponse>('/request/v60/', {
+    this.validateCommonRateParams(params);
+
+    return this.httpClient.get<V60PostalCodeResponse>('/request/v60', {
       params: {
         postalcode: params.postalcode,
-        format: params.format || 'json',
+        state: params.state,
+        ...this.commonRateQuery(params),
       },
     });
   }
 
+  // -------------------------------------------------------------------------
+  // Account
+  // -------------------------------------------------------------------------
+
   /**
-   * Get account metrics related to sales and use tax
+   * Get v6.0 account metrics: request count, limit, and usage percentage
    * @param params - Query parameters (optional)
    * @returns V60AccountMetrics with account usage information
    */
@@ -176,13 +201,29 @@ export class ZiptaxClient {
   }
 
   /**
+   * Get full account usage, broken out by quota type.
+   *
+   * Unlike {@link getAccountMetrics}, this reports core (tax lookup), geocoding,
+   * and merchant request quotas separately. Merchant Transactions are metered
+   * against the merchant allowance, not the tax-lookup allowance.
+   *
+   * @returns AccountUsageMetrics with per-quota usage information
+   */
+  async getAccountUsage(): Promise<AccountUsageMetrics> {
+    return this.httpClient.get<AccountUsageMetrics>('/account/metrics');
+  }
+
+  // -------------------------------------------------------------------------
+  // Product codes (TICs)
+  // -------------------------------------------------------------------------
+
+  /**
    * Search for product codes (TICs) by natural language description.
    * Returns all matching Taxability Information Codes ranked and scored
    * by relevance.
    *
-   * Use the returned ticId as the taxabilityCode parameter in rate requests
-   * or cart line items. For v60 rate requests (e.g., getSalesTaxByAddress),
-   * pass ticId as a string. For cart line items, convert to number.
+   * Use the returned ticId as the `taxabilityCode` parameter in rate requests
+   * (as a string), or as `tic` on cart and order line items (as a number).
    *
    * @param query - Natural language product description
    *   (e.g., "baked goods sold in plastic packaging")
@@ -193,7 +234,7 @@ export class ZiptaxClient {
    * const response = await client.searchProductCodes(
    *   "baked goods sold in plastic packaging"
    * );
-   * for (const result of response.results) {
+   * for (const result of response.results ?? []) {
    *   console.log(`${result.ticId}: ${result.label} (score=${result.score})`);
    * }
    * ```
@@ -211,10 +252,6 @@ export class ZiptaxClient {
    * Returns a single best-match TIC code with higher accuracy than
    * searchProductCodes. Has slightly higher latency due to the AI
    * processing step.
-   *
-   * Use the returned ticId as the taxabilityCode parameter in rate requests
-   * or cart line items. For v60 rate requests (e.g., getSalesTaxByAddress),
-   * pass ticId as a string. For cart line items, convert to number.
    *
    * @param query - Natural language product description
    *   (e.g., "baked goods sold in plastic packaging")
@@ -243,241 +280,697 @@ export class ZiptaxClient {
   }
 
   /**
-   * Calculate sales tax for a shopping cart.
+   * Get the full list of Taxability Information Codes (TICs), including the
+   * category hierarchy.
    *
-   * Routes to TaxCloud API when TaxCloud credentials are configured,
-   * otherwise routes to ZipTax API. The input contract (CalculateCartRequest)
-   * is the same regardless of which backend is used.
+   * This endpoint is public and needs no API key, but the client sends one
+   * anyway.
    *
-   * @param request - Cart with line items, addresses, and currency
-   * @returns CalculateCartResponse (ZipTax) or TaxCloudCalculateCartResponse (TaxCloud)
+   * @param params - Query parameters (optional)
+   * @returns TicDataResponse with the full TIC list
    */
-  async calculateCart(
-    request: CalculateCartRequest
-  ): Promise<CalculateCartResponse | TaxCloudCalculateCartResponse> {
-    // Validate cart structure
-    this.validateCartRequest(request);
-
-    // Route to TaxCloud if configured
-    if (this.taxCloudHttpClient && this.config.taxCloudConnectionId) {
-      return this.calculateCartTaxCloud(request);
-    }
-
-    // Default: route to ZipTax API
-    return this.httpClient.post<CalculateCartResponse>('/calculate/cart', request);
+  async getTicData(params?: GetTicDataParams): Promise<TicDataResponse> {
+    return this.httpClient.get<TicDataResponse>('/data/tic', {
+      params: params?.format ? { format: params.format } : undefined,
+    });
   }
 
   /**
-   * Validate the cart request structure
+   * Get the JSON Schema describing the TIC search response.
+   *
+   * @returns The raw JSON Schema document
    */
-  private validateCartRequest(request: CalculateCartRequest): void {
-    validateRequired(request.items, 'items');
+  async getTicSearchSchema(): Promise<Record<string, unknown>> {
+    return this.httpClient.get<Record<string, unknown>>('/schemas/ticsearch');
+  }
 
-    if (!Array.isArray(request.items) || request.items.length !== 1) {
-      throw new ZiptaxValidationError('items array must contain exactly 1 cart element');
-    }
+  // -------------------------------------------------------------------------
+  // System
+  // -------------------------------------------------------------------------
 
-    const cart = request.items[0];
-    validateRequired(cart.customerId, 'customerId');
-    validateRequired(cart.currency, 'currency');
-    validateRequired(cart.currency.currencyCode, 'currency.currencyCode');
+  /**
+   * Check API health, including tax-data cache and DynamoDB connectivity.
+   *
+   * This endpoint is public and needs no API key.
+   *
+   * @returns HealthResponse with overall and per-component status
+   */
+  async getHealth(): Promise<HealthResponse> {
+    return this.httpClient.get<HealthResponse>('/system/health');
+  }
 
-    if (cart.currency.currencyCode !== 'USD' && cart.currency.currencyCode !== 'CAD') {
-      throw new ZiptaxValidationError("currency.currencyCode must be 'USD' or 'CAD'");
-    }
+  /**
+   * Get metadata about the API instance serving requests.
+   *
+   * This endpoint is public and needs no API key.
+   *
+   * @returns SystemMetadataResponse with runtime and host information
+   */
+  async getSystemMetadata(): Promise<SystemMetadataResponse> {
+    return this.httpClient.get<SystemMetadataResponse>('/system/metadata');
+  }
 
-    validateRequired(cart.destination, 'destination');
-    validateRequired(cart.destination.address, 'destination.address');
-    validateRequired(cart.origin, 'origin');
-    validateRequired(cart.origin.address, 'origin.address');
-    validateRequired(cart.lineItems, 'lineItems');
+  // -------------------------------------------------------------------------
+  // Merchant management
+  // -------------------------------------------------------------------------
 
-    if (!Array.isArray(cart.lineItems) || cart.lineItems.length < 1) {
+  /**
+   * Create a merchant.
+   *
+   * `merchant_type` selects the compliance model and cannot be changed later
+   * through the API. It defaults to `taxcloud`, which starts the TaxCloud
+   * invite process; pass `self-managed` explicitly for a merchant that is
+   * active immediately and handles its own compliance.
+   *
+   * Your account must have a Company Name configured before any merchant can be
+   * created, otherwise the API returns 400. Reusing a `referenceId` that already
+   * belongs to another merchant returns 409.
+   *
+   * @param request - Merchant details
+   * @returns CreateMerchantResponse containing the new merchantId
+   *
+   * @experimental Merchant Management is a Private Preview feature; contact
+   *   support@zip.tax for access. Request and response shapes may change.
+   *
+   * @example
+   * ```typescript
+   * const { merchantId } = await client.createMerchant({
+   *   merchantName: 'Acme Outfitters',
+   *   contactEmail: 'jane@acmeoutfitters.com',
+   *   referenceId: 'acct-10482',
+   *   merchant_type: 'self-managed',
+   * });
+   * ```
+   */
+  async createMerchant(request: CreateMerchantRequest): Promise<CreateMerchantResponse> {
+    validateRequired(request.merchantName, 'merchantName');
+    validateMaxLength(request.merchantName, 255, 'merchantName');
+
+    return this.httpClient.post<CreateMerchantResponse>('/merchant/create', request);
+  }
+
+  /**
+   * Update a merchant's name, contact details, or referenceId.
+   *
+   * The update schema does not include `merchant_type`: a merchant's compliance
+   * model cannot be changed through the API.
+   *
+   * @param request - Merchant id and the new field values
+   * @returns UpdateMerchantResponse
+   *
+   * @experimental Private Preview
+   */
+  async updateMerchant(request: UpdateMerchantRequest): Promise<UpdateMerchantResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.update, 'update');
+    validateRequired(request.update.merchantName, 'update.merchantName');
+    validateMaxLength(request.update.merchantName, 255, 'update.merchantName');
+
+    return this.httpClient.post<UpdateMerchantResponse>('/merchant/update', request);
+  }
+
+  /**
+   * Retrieve a merchant.
+   *
+   * `merchant_type` is not returned. Use `status` to tell the compliance models
+   * apart: a self-managed merchant always reports `external_compliance`.
+   *
+   * @param merchantId - UUID of the merchant
+   * @returns GetMerchantResponse with the merchant record
+   *
+   * @experimental Private Preview
+   */
+  async getMerchant(merchantId: string): Promise<GetMerchantResponse> {
+    validateUuid(merchantId, 'merchantId');
+
+    return this.httpClient.post<GetMerchantResponse>('/merchant/get', { merchantId });
+  }
+
+  /**
+   * List every merchant owned by the account.
+   *
+   * @returns Array of merchant records
+   *
+   * @experimental Private Preview
+   */
+  async listMerchants(): Promise<ListMerchantsResponse> {
+    return this.httpClient.get<ListMerchantsResponse>('/merchant/list');
+  }
+
+  /**
+   * Soft-delete a merchant.
+   *
+   * @param merchantId - UUID of the merchant
+   * @returns DeleteMerchantResponse
+   *
+   * @experimental Private Preview
+   */
+  async deleteMerchant(merchantId: string): Promise<DeleteMerchantResponse> {
+    validateUuid(merchantId, 'merchantId');
+
+    return this.httpClient.post<DeleteMerchantResponse>('/merchant/delete', { merchantId });
+  }
+
+  /**
+   * Store a merchant's TaxCloud compliance credentials.
+   *
+   * Credentials are stored encrypted at rest and resolved server-side on every
+   * Merchant Transactions call, so they are never sent again after this call.
+   * A merchant without credentials returns 404 on every transaction endpoint.
+   *
+   * @param request - Merchant id plus the TaxCloud connection id and API key
+   * @returns SetMerchantCredentialsResponse
+   *
+   * @experimental Private Preview
+   */
+  async setMerchantCredentials(
+    request: SetMerchantCredentialsRequest
+  ): Promise<SetMerchantCredentialsResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.apiKey, 'apiKey');
+    validateRequired(request.connectionId, 'connectionId');
+
+    return this.httpClient.post<SetMerchantCredentialsResponse>(
+      '/merchant/credentials/set',
+      request
+    );
+  }
+
+  /**
+   * Remove a merchant's stored TaxCloud credentials.
+   *
+   * @param merchantId - UUID of the merchant
+   * @returns DeleteMerchantCredentialsResponse
+   *
+   * @experimental Private Preview
+   */
+  async deleteMerchantCredentials(merchantId: string): Promise<DeleteMerchantCredentialsResponse> {
+    validateUuid(merchantId, 'merchantId');
+
+    return this.httpClient.post<DeleteMerchantCredentialsResponse>('/merchant/credentials/delete', {
+      merchantId,
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Merchant transactions
+  // -------------------------------------------------------------------------
+
+  /**
+   * Calculate sales tax for one or more carts on behalf of a merchant.
+   *
+   * The response shape depends on the merchant's compliance model. A
+   * TaxCloud-connected merchant returns a `connectionId` and a `cartId` you can
+   * pass to {@link createOrderFromCart}; a self-managed merchant is calculated
+   * by the Ziptax rate engine and is stateless, so its result cannot become an
+   * order. Use `isTaxCloudCartResponse` to narrow.
+   *
+   * Cart calculation does not check the merchant's nexus footprint: it returns
+   * the rate for the sourced address whether or not the merchant has an
+   * obligation to collect there.
+   *
+   * @param request - Merchant id and the carts to calculate
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns The calculated carts
+   *
+   * @experimental Merchant Transactions is in active development.
+   *
+   * @example
+   * ```typescript
+   * const result = await client.calculateCart({
+   *   merchantId: '6b3c1f5e-2a8d-4c9b-9f2e-1d7a4b6c8e10',
+   *   items: [{
+   *     customerId: 'customer-453',
+   *     currency: { currencyCode: 'USD' },
+   *     origin: { line1: '1 Market St', city: 'San Francisco', state: 'CA', zip: '94105' },
+   *     destination: { line1: '200 Spectrum Center Dr', city: 'Irvine', state: 'CA', zip: '92618' },
+   *     lineItems: [{ index: 0, itemId: 'sku-1001', price: 49.99, quantity: 2 }],
+   *   }],
+   * });
+   * ```
+   */
+  async calculateCart(
+    request: CalculateCartRequest,
+    options?: RequestOptions
+  ): Promise<AnyCalculateCartResponse> {
+    this.validateCartRequest(request);
+
+    return this.httpClient.post<AnyCalculateCartResponse>(
+      '/merchant/cart/calculate',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  /**
+   * Record an order directly, supplying the tax that was collected.
+   *
+   * Not retry-safe: a retried create can produce a duplicate order. If a call
+   * times out, confirm with {@link getOrder} before retrying.
+   *
+   * @param request - The order to record
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns OrderResponse with the recorded order
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async createOrder(request: CreateOrderRequest, options?: RequestOptions): Promise<OrderResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.orderId, 'orderId');
+    validateMaxLength(request.orderId, 50, 'orderId');
+    validateRequired(request.customerId, 'customerId');
+    validateMaxLength(request.customerId, 50, 'customerId');
+    validateRequired(request.transactionDate, 'transactionDate');
+    validateRequired(request.completedDate, 'completedDate');
+    validateRequired(request.origin, 'origin');
+    validateRequired(request.destination, 'destination');
+    validateRequired(request.currency, 'currency');
+    validateRequired(request.lineItems, 'lineItems');
+
+    if (!Array.isArray(request.lineItems) || request.lineItems.length < 1) {
       throw new ZiptaxValidationError('lineItems must contain at least 1 item');
     }
 
-    if (cart.lineItems.length > 250) {
-      throw new ZiptaxValidationError('lineItems must not exceed 250 items');
-    }
-
-    for (const item of cart.lineItems) {
-      validateRequired(item.itemId, 'lineItems[].itemId');
-
-      if (typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price <= 0) {
-        throw new ZiptaxValidationError(
-          'lineItems[].price must be a finite positive number greater than 0'
-        );
-      }
-
-      if (
-        typeof item.quantity !== 'number' ||
-        !Number.isFinite(item.quantity) ||
-        item.quantity <= 0
-      ) {
-        throw new ZiptaxValidationError(
-          'lineItems[].quantity must be a finite positive number greater than 0'
-        );
-      }
-    }
-  }
-
-  /**
-   * Transform and send cart calculation request to TaxCloud API.
-   * Parses single-string addresses into structured components,
-   * maps taxabilityCode to tic, and adds 0-based index to line items.
-   */
-  private async calculateCartTaxCloud(
-    request: CalculateCartRequest
-  ): Promise<TaxCloudCalculateCartResponse> {
-    const transformedBody = this.transformCartForTaxCloud(request);
-    const connectionId = this.config.taxCloudConnectionId!;
-    const path = `/tax/connections/${connectionId}/carts`;
-
-    return this.taxCloudHttpClient!.post<TaxCloudCalculateCartResponse>(path, transformedBody);
-  }
-
-  /**
-   * Transform CalculateCartRequest into TaxCloud's request format.
-   * - Parses single-string addresses into structured components
-   * - Maps taxabilityCode to tic field (defaults to 0)
-   * - Adds 0-based index to each line item
-   */
-  private transformCartForTaxCloud(request: CalculateCartRequest): Record<string, unknown> {
-    const items = request.items.map((cartItem) => {
-      const destination = parseAddressString(cartItem.destination.address);
-      const origin = parseAddressString(cartItem.origin.address);
-
-      const lineItems = cartItem.lineItems.map((lineItem, idx) => ({
-        index: idx,
-        itemId: lineItem.itemId,
-        price: lineItem.price,
-        quantity: lineItem.quantity,
-        tic: lineItem.taxabilityCode ?? 0,
-      }));
-
-      return {
-        customerId: cartItem.customerId,
-        currency: {
-          currencyCode: cartItem.currency.currencyCode,
-        },
-        destination,
-        origin,
-        lineItems,
-      };
+    request.lineItems.forEach((item, i) => {
+      this.validateLineItem(item, `lineItems[${i}]`);
+      validateRequired(item.tax, `lineItems[${i}].tax`);
     });
 
-    return { items };
+    return this.httpClient.post<OrderResponse>(
+      '/merchant/order/create',
+      request,
+      this.merchantRequestConfig(options)
+    );
   }
 
   /**
-   * Verify TaxCloud credentials are configured
-   * @throws ZiptaxConfigurationError if TaxCloud credentials are not configured
+   * Record an order from a previously calculated cart.
+   *
+   * Only available for a TaxCloud-connected merchant: a self-managed cart
+   * calculation is stateless and has no stored cart to convert.
+   *
+   * @param request - Merchant id, cartId, and your orderId
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns OrderResponse with the recorded order
+   *
+   * @experimental Merchant Transactions is in active development.
    */
-  private verifyTaxCloudCredentials(): void {
-    if (!this.taxCloudHttpClient || !this.config.taxCloudConnectionId) {
-      throw new ZiptaxConfigurationError(
-        'TaxCloud credentials not configured. Please provide taxCloudConnectionId and taxCloudAPIKey in the client configuration.'
+  async createOrderFromCart(
+    request: CreateOrderFromCartRequest,
+    options?: RequestOptions
+  ): Promise<OrderResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.cartId, 'cartId');
+    validateMaxLength(request.cartId, 50, 'cartId');
+    validateRequired(request.orderId, 'orderId');
+    validateMaxLength(request.orderId, 50, 'orderId');
+
+    return this.httpClient.post<OrderResponse>(
+      '/merchant/order/create-from-cart',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  /**
+   * Retrieve an order.
+   *
+   * @param request - Merchant id, orderId, and optional `expand: 'refunds'`
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns OrderResponse with the order
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async getOrder(request: GetOrderRequest, options?: RequestOptions): Promise<OrderResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.orderId, 'orderId');
+
+    return this.httpClient.post<OrderResponse>(
+      '/merchant/order/get',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  /**
+   * Update an order's completed date, marking when the tax liability was
+   * created.
+   *
+   * @param request - Merchant id, orderId, and the new completedDate
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns OrderResponse with the updated order
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async updateOrder(request: UpdateOrderRequest, options?: RequestOptions): Promise<OrderResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.orderId, 'orderId');
+
+    return this.httpClient.post<OrderResponse>(
+      '/merchant/order/update',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  /**
+   * Refund all or part of a recorded order.
+   *
+   * Omit `items` to refund the entire order. Never retry blindly: a duplicate
+   * refund is a financial incident. If a call times out, confirm with
+   * `getOrder({ ..., expand: 'refunds' })` before retrying.
+   *
+   * @param request - Merchant id, orderId, and optionally the items to refund
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns RefundResponse with the refunded items
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async refundOrder(
+    request: CreateRefundRequest,
+    options?: RequestOptions
+  ): Promise<RefundResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.orderId, 'orderId');
+
+    if (request.items) {
+      if (!Array.isArray(request.items)) {
+        throw new ZiptaxValidationError('items must be an array');
+      }
+      request.items.forEach((item, i) => {
+        validateRequired(item.itemId, `items[${i}].itemId`);
+        validateMaxLength(item.itemId, 50, `items[${i}].itemId`);
+        if (typeof item.quantity !== 'number' || !Number.isFinite(item.quantity)) {
+          throw new ZiptaxValidationError(`items[${i}].quantity must be a finite number`);
+        }
+        if (item.quantity <= 0) {
+          throw new ZiptaxValidationError(`items[${i}].quantity must be greater than 0`);
+        }
+      });
+    }
+
+    return this.httpClient.post<RefundResponse>(
+      '/merchant/refund/create',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Exemption certificates
+  // -------------------------------------------------------------------------
+
+  /**
+   * Store an exemption certificate for a customer.
+   *
+   * Carts and orders submitted with the same `customerId` are matched against
+   * the certificate.
+   *
+   * @param request - Certificate details
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns CertificateResponse with the stored certificate
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async createExemptionCertificate(
+    request: CreateCertificateRequest,
+    options?: RequestOptions
+  ): Promise<CertificateResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.customerId, 'customerId');
+    validateRequired(request.customerName, 'customerName');
+    validateRequired(request.customerBusinessType, 'customerBusinessType');
+    validateRequired(request.reason, 'reason');
+    validateRequired(request.reasonDescription, 'reasonDescription');
+    validateMaxLength(request.reasonDescription, 20, 'reasonDescription');
+    validateRequired(request.address, 'address');
+    validateRequired(request.states, 'states');
+
+    if (!Array.isArray(request.states) || request.states.length < 1) {
+      throw new ZiptaxValidationError('states must contain at least 1 state');
+    }
+
+    request.states.forEach((state, i) => {
+      validateRequired(state.abbreviation, `states[${i}].abbreviation`);
+      validatePattern(
+        state.abbreviation,
+        /^[A-Za-z]{2}$/,
+        `states[${i}].abbreviation`,
+        'two-letter state abbreviation'
       );
+    });
+
+    return this.httpClient.post<CertificateResponse>(
+      '/merchant/cert/create',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  /**
+   * Retrieve an exemption certificate.
+   *
+   * @param request - Merchant id and certificateId
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns CertificateResponse with the certificate
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async getExemptionCertificate(
+    request: GetCertificateRequest,
+    options?: RequestOptions
+  ): Promise<CertificateResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.certificateId, 'certificateId');
+
+    return this.httpClient.post<CertificateResponse>(
+      '/merchant/cert/get',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  /**
+   * List a merchant's exemption certificates, newest first by default.
+   *
+   * Paginate by passing the previous response's `nextCursor` as `cursor`.
+   *
+   * @param request - Merchant id plus optional filters and pagination
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns ListCertificatesResponse with one page of certificates
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async listExemptionCertificates(
+    request: ListCertificatesRequest,
+    options?: RequestOptions
+  ): Promise<ListCertificatesResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+
+    if (request.limit !== undefined) {
+      validateNumberRange(request.limit, 1, 100, 'limit');
+    }
+
+    return this.httpClient.post<ListCertificatesResponse>(
+      '/merchant/cert/list',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  /**
+   * Delete (revoke) an exemption certificate.
+   *
+   * @param request - Merchant id and certificateId
+   * @param options - Per-request overrides (e.g. environment)
+   * @returns CertificateResponse for the deleted certificate
+   *
+   * @experimental Merchant Transactions is in active development.
+   */
+  async deleteExemptionCertificate(
+    request: DeleteCertificateRequest,
+    options?: RequestOptions
+  ): Promise<CertificateResponse> {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.certificateId, 'certificateId');
+
+    return this.httpClient.post<CertificateResponse>(
+      '/merchant/cert/delete',
+      request,
+      this.merchantRequestConfig(options)
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Internals
+  // -------------------------------------------------------------------------
+
+  /**
+   * Build the axios config for a Merchant Transactions call, applying the
+   * X-ENV header when targeting the merchant's Test environment.
+   */
+  private merchantRequestConfig(options?: RequestOptions): { headers: Record<string, string> } {
+    const environment: MerchantEnvironment = options?.environment ?? this.config.environment;
+
+    return { headers: { 'X-ENV': environment } };
+  }
+
+  /**
+   * Validate the optional parameters shared by every rate lookup
+   */
+  private validateCommonRateParams(params: { taxabilityCode?: string; historical?: string }): void {
+    if (params.taxabilityCode) {
+      validatePattern(
+        params.taxabilityCode,
+        /^[A-Za-z0-9]{1,10}$/,
+        'taxabilityCode',
+        'up to 10 alphanumeric characters'
+      );
+    }
+
+    if (params.historical) {
+      validateHistorical(params.historical);
     }
   }
 
   /**
-   * Create a new TaxCloud order
-   * @param request - Order creation request
-   * @returns OrderResponse with created order details
+   * Build the query parameters shared by every rate lookup
    */
-  async createOrder(request: CreateOrderRequest): Promise<OrderResponse> {
-    this.verifyTaxCloudCredentials();
-
-    // Validate required fields
-    validateRequired(request.orderId, 'orderId');
-    validateRequired(request.customerId, 'customerId');
-    validateRequired(request.transactionDate, 'transactionDate');
-    validateRequired(request.completedDate, 'completedDate');
-
-    const connectionId = this.config.taxCloudConnectionId!;
-    const path = `/tax/connections/${connectionId}/orders`;
-
-    return this.taxCloudHttpClient!.post<OrderResponse>(path, request);
+  private commonRateQuery(params: {
+    taxabilityCode?: string;
+    countryCode?: string;
+    historical?: string;
+    format?: string;
+    adjustment?: string;
+    addressDetailExtended?: boolean;
+    shippingExtended?: boolean;
+  }): Record<string, unknown> {
+    return {
+      taxabilityCode: params.taxabilityCode,
+      countryCode: params.countryCode || 'USA',
+      historical: params.historical,
+      format: params.format || 'json',
+      adjustment: params.adjustment,
+      addressDetailExtended: params.addressDetailExtended,
+      shippingExtended: params.shippingExtended,
+    };
   }
 
   /**
-   * Get an existing TaxCloud order by ID
-   * @param orderId - Unique order identifier
-   * @returns OrderResponse with order details
+   * Validate a cart or order line item
    */
-  async getOrder(orderId: string): Promise<OrderResponse> {
-    this.verifyTaxCloudCredentials();
+  private validateLineItem(
+    item: { index: number; itemId: string; price: number; quantity: number; tic?: number },
+    path: string
+  ): void {
+    if (
+      typeof item.index !== 'number' ||
+      !Number.isInteger(item.index) ||
+      item.index < 0 ||
+      item.index > MAX_LINE_ITEM_INDEX
+    ) {
+      throw new ZiptaxValidationError(
+        `${path}.index must be an integer between 0 and ${MAX_LINE_ITEM_INDEX}`
+      );
+    }
 
-    // Validate required fields
-    validateRequired(orderId, 'orderId');
+    validateRequired(item.itemId, `${path}.itemId`);
+    validateMaxLength(item.itemId, 50, `${path}.itemId`);
 
-    const connectionId = this.config.taxCloudConnectionId!;
-    const path = `/tax/connections/${connectionId}/orders/${orderId}`;
+    if (typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price < 0) {
+      throw new ZiptaxValidationError(`${path}.price must be a finite number of at least 0`);
+    }
 
-    return this.taxCloudHttpClient!.get<OrderResponse>(path);
+    if (
+      typeof item.quantity !== 'number' ||
+      !Number.isFinite(item.quantity) ||
+      item.quantity < 0 ||
+      item.quantity > MAX_LINE_ITEM_QUANTITY
+    ) {
+      throw new ZiptaxValidationError(
+        `${path}.quantity must be a finite number between 0 and ${MAX_LINE_ITEM_QUANTITY}`
+      );
+    }
+
+    if (item.tic !== undefined) {
+      validateNumberRange(item.tic, 0, 100000, `${path}.tic`);
+    }
   }
 
   /**
-   * Update an existing TaxCloud order
-   * @param orderId - Unique order identifier
-   * @param request - Order update request
-   * @returns OrderResponse with updated order details
+   * Validate the cart calculation request structure
    */
-  async updateOrder(orderId: string, request: UpdateOrderRequest): Promise<OrderResponse> {
-    this.verifyTaxCloudCredentials();
+  private validateCartRequest(request: CalculateCartRequest): void {
+    validateUuid(request.merchantId, 'merchantId');
+    validateRequired(request.items, 'items');
 
-    // Validate required fields
-    validateRequired(orderId, 'orderId');
-    validateRequired(request.completedDate, 'completedDate');
+    if (!Array.isArray(request.items) || request.items.length < 1) {
+      throw new ZiptaxValidationError('items must contain at least 1 cart');
+    }
 
-    const connectionId = this.config.taxCloudConnectionId!;
-    const path = `/tax/connections/${connectionId}/orders/${orderId}`;
+    if (request.items.length > MAX_CARTS_PER_REQUEST) {
+      throw new ZiptaxValidationError(`items must not exceed ${MAX_CARTS_PER_REQUEST} carts`);
+    }
 
-    return this.taxCloudHttpClient!.patch<OrderResponse>(path, request);
+    request.items.forEach((cart, cartIndex) => {
+      const path = `items[${cartIndex}]`;
+
+      validateRequired(cart.customerId, `${path}.customerId`);
+      validateMaxLength(cart.customerId, 50, `${path}.customerId`);
+
+      if (cart.cartId !== undefined) {
+        validateMaxLength(cart.cartId, 50, `${path}.cartId`);
+      }
+
+      validateRequired(cart.currency, `${path}.currency`);
+      if (
+        cart.currency.currencyCode !== undefined &&
+        cart.currency.currencyCode !== 'USD' &&
+        cart.currency.currencyCode !== 'CAD'
+      ) {
+        throw new ZiptaxValidationError(`${path}.currency.currencyCode must be 'USD' or 'CAD'`);
+      }
+
+      this.validateAddress(cart.origin, `${path}.origin`);
+      this.validateAddress(cart.destination, `${path}.destination`);
+
+      validateRequired(cart.lineItems, `${path}.lineItems`);
+      if (!Array.isArray(cart.lineItems) || cart.lineItems.length < 1) {
+        throw new ZiptaxValidationError(`${path}.lineItems must contain at least 1 item`);
+      }
+
+      const seenIndexes = new Set<number>();
+      cart.lineItems.forEach((item, itemIndex) => {
+        this.validateLineItem(item, `${path}.lineItems[${itemIndex}]`);
+
+        if (seenIndexes.has(item.index)) {
+          throw new ZiptaxValidationError(
+            `${path}.lineItems contains duplicate index ${item.index}; each line item must have a unique index`
+          );
+        }
+        seenIndexes.add(item.index);
+      });
+    });
   }
 
   /**
-   * Refund a TaxCloud order
-   * @param orderId - Unique order identifier
-   * @param request - Refund request with items to refund
-   * @returns Array of RefundTransactionResponse
+   * Validate a structured address
    */
-  async refundOrder(
-    orderId: string,
-    request?: RefundTransactionRequest
-  ): Promise<RefundTransactionResponse[]> {
-    this.verifyTaxCloudCredentials();
+  private validateAddress(
+    address: { line1: string; city: string; state: string; zip: string } | undefined,
+    path: string
+  ): void {
+    validateRequired(address, path);
+    const addr = address as { line1: string; city: string; state: string; zip: string };
 
-    // Validate required fields
-    validateRequired(orderId, 'orderId');
-
-    const connectionId = this.config.taxCloudConnectionId!;
-    const path = `/tax/connections/${connectionId}/orders/refunds/${orderId}`;
-
-    // Empty or omitted items means full refund per TaxCloud API spec
-    return this.taxCloudHttpClient!.post<RefundTransactionResponse[]>(path, request || {});
-  }
-
-  /**
-   * Create a TaxCloud order from a previously calculated cart.
-   * Converts an existing cart (created via calculateCart with TaxCloud
-   * credentials) into a finalized order for tax filing.
-   *
-   * @param request - Cart-to-order request containing cartId and orderId
-   * @returns OrderResponse with created order details
-   */
-  async createOrderFromCart(request: CreateOrderFromCartRequest): Promise<OrderResponse> {
-    this.verifyTaxCloudCredentials();
-
-    // Validate required fields
-    validateRequired(request.cartId, 'cartId');
-    validateRequired(request.orderId, 'orderId');
-
-    const connectionId = this.config.taxCloudConnectionId!;
-    const path = `/tax/connections/${connectionId}/carts/orders`;
-
-    return this.taxCloudHttpClient!.post<OrderResponse>(path, request);
+    validateRequired(addr.line1, `${path}.line1`);
+    validateMaxLength(addr.line1, 128, `${path}.line1`);
+    validateRequired(addr.city, `${path}.city`);
+    validateMaxLength(addr.city, 50, `${path}.city`);
+    validateRequired(addr.state, `${path}.state`);
+    validateMaxLength(addr.state, 32, `${path}.state`);
+    validateRequired(addr.zip, `${path}.zip`);
+    validateMaxLength(addr.zip, 16, `${path}.zip`);
   }
 
   /**
@@ -490,8 +983,7 @@ export class ZiptaxClient {
       timeout: this.config.timeout,
       retryOptions: this.config.retryOptions,
       enableLogging: this.config.enableLogging,
-      taxCloudConnectionId: this.config.taxCloudConnectionId,
-      taxCloudAPIKey: this.config.taxCloudAPIKey,
+      environment: this.config.environment,
     };
   }
 }

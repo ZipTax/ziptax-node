@@ -34,8 +34,8 @@ async function main() {
 
     // Get sales tax by geolocation
     const taxByGeo = await client.getSalesTaxByGeoLocation({
-      lat: '33.65253',
-      lng: '-117.74794',
+      lat: 33.65253,
+      lng: -117.74794,
     });
 
     console.log('Tax Rate by Geolocation:');
@@ -61,6 +61,33 @@ async function main() {
     console.log('Requests:', metrics.request_count, '/', metrics.request_limit);
     console.log('Usage:', metrics.usage_percent.toFixed(2), '%');
     console.log('Active:', metrics.is_active);
+    console.log('---');
+
+    // Get the per-quota usage breakdown, including merchant requests
+    const usage = await client.getAccountUsage();
+
+    console.log('Account Usage by Quota:');
+    console.log(
+      'Core:',
+      usage.core_request_count,
+      '/',
+      usage.core_request_limit,
+      `(${usage.core_usage_percent.toFixed(2)}%)`
+    );
+    console.log(
+      'Geo:',
+      usage.geo_request_count,
+      '/',
+      usage.geo_request_limit,
+      `(${usage.geo_usage_percent.toFixed(2)}%)`
+    );
+    console.log(
+      'Merchant:',
+      usage.merchant_request_count,
+      '/',
+      usage.merchant_request_limit,
+      `(${usage.merchant_usage_percent.toFixed(2)}%)`
+    );
   } catch (error) {
     console.error('Error:', error);
   }
