@@ -1,16 +1,17 @@
 {
   "name": "@ziptax/node-sdk",
-  "version": "1.0.0-beta",
+  "version": "1.0.1-beta",
   "description": "Official Node.js SDK for the ZipTax API",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/types/index.d.ts",
       "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.js",
-      "types": "./dist/types/index.d.ts"
-    }
+      "import": "./dist/esm/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -18,7 +19,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npm run build:clean && npm run build:version && npm run build:cjs && npm run build:esm && npm run build:types",
+    "build": "npm run build:clean && npm run build:version && npm run build:cjs && npm run build:esm && npm run build:types && npm run build:dist-types",
     "build:clean": "rm -rf dist",
     "build:version": "node scripts/generate-version.js",
     "build:cjs": "tsc -p tsconfig.cjs.json",
@@ -39,7 +40,9 @@
     "example:merchants": "tsx examples/merchant-management.ts",
     "example:merchant": "tsx examples/merchant-transactions.ts",
     "example:webhooks": "tsx examples/webhooks.ts",
-    "prepublishOnly": "npm run build && npm run test && npm run lint && npm run type-check"
+    "prepublishOnly": "npm run build && npm run test && npm run lint && npm run type-check && node scripts/smoke-test-package.js",
+    "smoke:package": "npm run build && node scripts/smoke-test-package.js",
+    "build:dist-types": "node scripts/write-dist-package-types.js"
   },
   "keywords": [
     "tax",

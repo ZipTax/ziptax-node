@@ -3,6 +3,13 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
+  // Sources write relative imports with an explicit .js extension so the ESM
+  // build is loadable by Node, which does not resolve extensionless specifiers.
+  // TypeScript maps './client.js' back to './client.ts' when compiling; Jest
+  // does not, so strip the extension for module resolution here.
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
