@@ -16,6 +16,8 @@ import {
   V60Service,
   V60PostalCodeResult,
   V60Taxability,
+  MerchantType,
+  CreateMerchantRequest,
 } from '../src/models';
 
 describe('V60 response types', () => {
@@ -189,6 +191,35 @@ describe('V60 response types', () => {
     it('shares one taxability type across service, shipping, and postal results', () => {
       const values: V60Taxability[] = ['Y', 'N', 'L'];
       expect(values).toHaveLength(3);
+    });
+  });
+
+  describe('MerchantType offers only the documented compliance models', () => {
+    it('accepts the two documented values', () => {
+      const values: MerchantType[] = ['taxcloud', 'self-managed'];
+      expect(values).toEqual(['taxcloud', 'self-managed']);
+    });
+
+    it('rejects the undocumented legacy aliases', () => {
+      // `connected` and `offline` are in the API's enum but are legacy aliases it
+      // normalizes to `taxcloud` and `self-managed`. They are not documented, so
+      // the SDK does not offer them. @ts-expect-error fails the build if either
+      // becomes assignable again, e.g. by copying the OpenAPI enum back in.
+      // @ts-expect-error 'connected' is a legacy alias and must not be offered
+      const connected: MerchantType = 'connected';
+      // @ts-expect-error 'offline' is a legacy alias and must not be offered
+      const offline: MerchantType = 'offline';
+
+      // The values still exist at runtime; only the type rejects them.
+      expect([connected, offline]).toEqual(['connected', 'offline']);
+    });
+
+    it('narrows merchant_type on a create request', () => {
+      const request: CreateMerchantRequest = {
+        merchantName: 'Acme Outfitters',
+        merchant_type: 'self-managed',
+      };
+      expect(request.merchant_type).toBe('self-managed');
     });
   });
 });

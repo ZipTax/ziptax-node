@@ -74,6 +74,19 @@ supplied by the client's `environment` option or a per-call `RequestOptions`.
 | `GET /request/v40/activate` | Internal, undocumented |
 | `GET /account/v50/metrics` | Superseded by the v6.0 and unversioned metrics endpoints |
 
+Also excluded, at the field level:
+
+| Field value | Why |
+| --- | --- |
+| `merchant_type: 'connected'` / `'offline'` | In the API's enum, but legacy aliases it normalizes to `taxcloud` and `self-managed` (see `legacyMerchantTypeTaxCloud` / `legacyMerchantTypeSelfManaged` in `controllers/merchant/handler.go`). Undocumented, so `MerchantType` offers only the two documented models |
+
+Narrowing a **request** field like this is safe, because it only restricts what
+the SDK will send. Do not narrow a **response** field the same way: the API can
+return values the docs do not list, and a closed union makes a valid response
+unassignable. `V60BaseRate.jurType` and `V60TaxSummary.taxType` are deliberately
+left open for that reason — the published enums describe only the
+`countryCode=USA` path, while `countryCode=CAN` returns `GST`/`PST` and `Sales`.
+
 ## No API surface
 
 These are documented features with no endpoints, so the SDK cannot cover them:

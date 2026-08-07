@@ -15,8 +15,13 @@
  *   registration, filing, and remittance in the merchant's own account.
  * - `self-managed`: active immediately, no invite. The merchant stays
  *   responsible for their own compliance.
+ *
+ * The API's enum also accepts `connected` and `offline`, which it normalizes to
+ * `taxcloud` and `self-managed` respectively. They are legacy aliases, are not
+ * documented, and are deliberately not offered here — do not add them back from
+ * the OpenAPI enum.
  */
-export type MerchantType = 'taxcloud' | 'self-managed' | 'connected' | 'offline';
+export type MerchantType = 'taxcloud' | 'self-managed';
 
 /**
  * Derived merchant lifecycle status returned on reads.
