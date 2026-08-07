@@ -4,6 +4,11 @@
 
 import { ZiptaxValidationError } from '../exceptions';
 
+/** Maximum length accepted by the TIC search and recommend endpoints */
+export const MAX_PRODUCT_QUERY_LENGTH = 1024;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Validate that a value is not empty
  */
@@ -57,75 +62,48 @@ export function validateApiKey(apiKey: string): void {
 }
 
 /**
- * Parsed address components for TaxCloud structured address format
+ * Validate that a value is a UUID.
+ *
+ * Merchant identifiers returned by `POST /merchant/create` are UUIDs, and the
+ * API rejects malformed ones with a 400. Checking locally turns that into a
+ * clearer client-side error.
  */
-export interface ParsedAddress {
-  line1: string;
-  city: string;
-  state: string;
-  zip: string;
-  countryCode: string;
+export function validateUuid(value: unknown, fieldName: string): void {
+  validateRequired(value, fieldName);
+  if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
+    throw new ZiptaxValidationError(`${fieldName} must be a valid UUID`);
+  }
 }
 
 /**
- * Parse a single address string into structured TaxCloud address components.
- *
- * Parses addresses in the format:
- *   "line1, city, state zip" or "line1, city, state zip-plus4"
- *
- * @example
- * parseAddressString("200 Spectrum Center Dr, Irvine, CA 92618")
- * // => { line1: "200 Spectrum Center Dr", city: "Irvine", state: "CA", zip: "92618", countryCode: "US" }
- *
- * @param address - Full address string to parse
- * @returns Parsed address with line1, city, state, zip, countryCode
- * @throws ZiptaxValidationError if the address cannot be parsed
+ * Validate a finite number within an inclusive range
  */
-export function parseAddressString(address: string): ParsedAddress {
-  if (!address || !address.trim()) {
-    throw new ZiptaxValidationError(
-      "Address string cannot be empty. Expected format: 'street, city, state zip'"
-    );
+export function validateNumberRange(
+  value: unknown,
+  min: number,
+  max: number,
+  fieldName: string
+): void {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new ZiptaxValidationError(`${fieldName} must be a finite number`);
   }
-
-  const parts = address.split(',').map((p) => p.trim());
-
-  if (parts.length < 3) {
-    throw new ZiptaxValidationError(
-      `Cannot parse address into structured components. ` +
-        `Expected at least 3 comma-separated parts ` +
-        `(street, city, state zip), got ${parts.length}: '${address}'`
-    );
+  if (value < min || value > max) {
+    throw new ZiptaxValidationError(`${fieldName} must be between ${min} and ${max}`);
   }
+}
 
-  // line1 is everything before the last two segments
-  const line1 = parts.slice(0, -2).join(', ');
-  const city = parts[parts.length - 2];
-  const stateZip = parts[parts.length - 1];
-
-  // Parse state and zip from the last segment (e.g., "CA 92618" or "CA 92618-1905")
-  const stateZipMatch = stateZip.match(/^([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/);
-  if (!stateZipMatch) {
-    throw new ZiptaxValidationError(
-      `Cannot parse state and ZIP from address segment: '${stateZip}'. ` +
-        `Expected format: 'ST 12345' or 'ST 12345-6789'`
-    );
-  }
-
-  return {
-    line1,
-    city,
-    state: stateZipMatch[1].toUpperCase(),
-    zip: stateZipMatch[2],
-    countryCode: 'US',
-  };
+/**
+ * Validate a historical period in YYYYMM format
+ */
+export function validateHistorical(historical: string): void {
+  validatePattern(historical, /^[0-9]{6}$/, 'historical', 'YYYYMM format');
 }
 
 /**
  * Validate product description query for TIC search endpoints.
  *
  * @param query - Natural language product description to validate
- * @throws ZiptaxValidationError if query is empty, not a string, or exceeds 500 characters
+ * @throws ZiptaxValidationError if query is empty, not a string, or too long
  */
 export function validateProductQuery(query: string): void {
   if (typeof query !== 'string') {
@@ -136,7 +114,9 @@ export function validateProductQuery(query: string): void {
     throw new ZiptaxValidationError('Product query cannot be empty');
   }
 
-  if (query.length > 500) {
-    throw new ZiptaxValidationError('Product query exceeds maximum length of 500 characters');
+  if (query.length > MAX_PRODUCT_QUERY_LENGTH) {
+    throw new ZiptaxValidationError(
+      `Product query exceeds maximum length of ${MAX_PRODUCT_QUERY_LENGTH} characters`
+    );
   }
 }

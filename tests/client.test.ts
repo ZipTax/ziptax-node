@@ -1,16 +1,10 @@
 /**
- * Tests for ZiptaxClient
+ * Tests for ZiptaxClient rate lookups, account, product codes, and system
  */
 
 import { ZiptaxClient } from '../src/client';
 import { ZiptaxValidationError } from '../src/exceptions';
 import { HTTPClient } from '../src/utils/http';
-import {
-  CalculateCartRequest,
-  CalculateCartResponse,
-  ProductCodeSearchResponse,
-  ProductCodeRecommendationResponse,
-} from '../src/models';
 
 // Mock the HTTPClient
 jest.mock('../src/utils/http');
@@ -54,12 +48,7 @@ const mockV60Response = {
       rate: 0.0775,
       taxType: 'SALES_TAX',
       summaryName: 'Total Base Sales Tax',
-      displayRates: [
-        {
-          name: 'Total Rate',
-          rate: 0.0775,
-        },
-      ],
+      displayRates: [{ name: 'Total Rate', rate: 0.0775 }],
     },
   ],
   addressDetail: {
@@ -90,21 +79,21 @@ const mockPostalCodeResponse = {
       cityTaxCode: '',
       countySalesTax: 0.0025,
       countyUseTax: 0.0025,
-      countyTaxCode: '',
+      countyTaxCode: '30',
       districtSalesTax: 0.015,
       districtUseTax: 0.015,
-      district1Code: '37',
-      district1SalesTax: 0,
-      district1UseTax: 0,
-      district2Code: '37',
-      district2SalesTax: 0.005,
-      district2UseTax: 0.005,
+      district1Code: '037',
+      district1SalesTax: 0.005,
+      district1UseTax: 0.005,
+      district2Code: '',
+      district2SalesTax: 0,
+      district2UseTax: 0,
       district3Code: '',
       district3SalesTax: 0,
       district3UseTax: 0,
-      district4Code: '30',
-      district4SalesTax: 0.01,
-      district4UseTax: 0.01,
+      district4Code: '',
+      district4SalesTax: 0,
+      district4UseTax: 0,
       district5Code: '',
       district5SalesTax: 0,
       district5UseTax: 0,
@@ -112,8 +101,8 @@ const mockPostalCodeResponse = {
     },
   ],
   addressDetail: {
-    normalizedAddress: 'feature available for geo address lookups only',
-    incorporated: 'feature available for geo address lookups only',
+    normalizedAddress: '',
+    incorporated: '',
     geoLat: 0,
     geoLng: 0,
   },
@@ -127,6 +116,21 @@ const mockAccountMetrics = {
   message: 'Contact support@zip.tax to modify your account',
 };
 
+const mockAccountUsage = {
+  is_active: true,
+  core_request_count: 15595,
+  core_request_limit: 1000000,
+  core_usage_percent: 1.5595,
+  geo_request_count: 2300,
+  geo_request_limit: 50000,
+  geo_usage_percent: 4.6,
+  geo_enabled: true,
+  merchant_request_count: 120,
+  merchant_request_limit: 10000,
+  merchant_usage_percent: 1.2,
+  message: 'Contact support@zip.tax to modify your account',
+};
+
 describe('ZiptaxClient', () => {
   let mockHttpClient: jest.Mocked<HTTPClient>;
 
@@ -135,6 +139,7 @@ describe('ZiptaxClient', () => {
     mockHttpClient = {
       get: jest.fn(),
       post: jest.fn(),
+      patch: jest.fn(),
     } as unknown as jest.Mocked<HTTPClient>;
     (HTTPClient as jest.MockedClass<typeof HTTPClient>).mockImplementation(() => mockHttpClient);
   });
@@ -154,6 +159,7 @@ describe('ZiptaxClient', () => {
       const config = client.getConfig();
       expect(config.baseURL).toBe('https://api.zip-tax.com');
       expect(config.timeout).toBe(30000);
+      expect(config.environment).toBe('LIVE');
     });
 
     it('should accept custom configuration', () => {
@@ -161,10 +167,12 @@ describe('ZiptaxClient', () => {
         apiKey: 'test-api-key',
         baseURL: 'https://custom.api.com',
         timeout: 5000,
+        environment: 'TEST',
       });
       const config = client.getConfig();
       expect(config.baseURL).toBe('https://custom.api.com');
       expect(config.timeout).toBe(5000);
+      expect(config.environment).toBe('TEST');
     });
   });
 
@@ -178,14 +186,63 @@ describe('ZiptaxClient', () => {
       });
 
       expect(result).toEqual(mockV60Response);
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60/', {
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60', {
         params: {
           address: '200 Spectrum Center Drive, Irvine, CA 92618',
+          city: undefined,
+          state: undefined,
+          stateCode: undefined,
+          county: undefined,
+          sat_item_total: undefined,
           taxabilityCode: undefined,
           countryCode: 'USA',
           historical: undefined,
           format: 'json',
+          adjustment: undefined,
+          addressDetailExtended: undefined,
+          shippingExtended: undefined,
         },
+      });
+    });
+
+    it('should request the path without a trailing slash to avoid a 301', async () => {
+      mockHttpClient.get.mockResolvedValue(mockV60Response);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await client.getSalesTaxByAddress({ address: '200 Spectrum Center Drive' });
+
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60', expect.anything());
+    });
+
+    it('should pass the extended and disambiguation parameters through', async () => {
+      mockHttpClient.get.mockResolvedValue(mockV60Response);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await client.getSalesTaxByAddress({
+        address: '200 Spectrum Center Drive',
+        city: 'Irvine',
+        state: 'California',
+        stateCode: 'ca',
+        county: 'Orange',
+        satItemTotal: 1600,
+        adjustment: 'origin',
+        addressDetailExtended: true,
+        shippingExtended: true,
+        taxabilityCode: '20010',
+      });
+
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60', {
+        params: expect.objectContaining({
+          city: 'Irvine',
+          state: 'California',
+          stateCode: 'CA',
+          county: 'Orange',
+          sat_item_total: 1600,
+          adjustment: 'origin',
+          addressDetailExtended: true,
+          shippingExtended: true,
+          taxabilityCode: '20010',
+        }),
       });
     });
 
@@ -204,26 +261,60 @@ describe('ZiptaxClient', () => {
       );
     });
 
-    it('should validate taxability code format', async () => {
+    it('should accept alphanumeric override taxability codes', async () => {
+      mockHttpClient.get.mockResolvedValue(mockV60Response);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await expect(
+        client.getSalesTaxByAddress({
+          address: '200 Spectrum Center Drive',
+          taxabilityCode: 'CIR00001',
+        })
+      ).resolves.toEqual(mockV60Response);
+    });
+
+    it('should reject taxability codes longer than 10 characters', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
       await expect(
         client.getSalesTaxByAddress({
           address: '200 Spectrum Center Drive',
-          taxabilityCode: 'invalid',
+          taxabilityCode: 'ABCDEFGHIJK',
         })
+      ).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should reject taxability codes with punctuation', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(
+        client.getSalesTaxByAddress({
+          address: '200 Spectrum Center Drive',
+          taxabilityCode: 'not-valid',
+        })
+      ).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should reject an invalid stateCode', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(
+        client.getSalesTaxByAddress({ address: '200 Spectrum Center Drive', stateCode: 'CAL' })
+      ).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should reject a negative satItemTotal', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(
+        client.getSalesTaxByAddress({ address: '200 Spectrum Center Drive', satItemTotal: -1 })
       ).rejects.toThrow(ZiptaxValidationError);
     });
 
     it('should validate historical date format (YYYYMM)', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      // Reject YYYY-MM (with dash)
       await expect(
         client.getSalesTaxByAddress({
           address: '200 Spectrum Center Drive',
           historical: '2024-01',
         })
       ).rejects.toThrow(ZiptaxValidationError);
-      // Reject arbitrary string
       await expect(
         client.getSalesTaxByAddress({
           address: '200 Spectrum Center Drive',
@@ -241,6 +332,17 @@ describe('ZiptaxClient', () => {
       });
       expect(result).toEqual(mockV60Response);
     });
+
+    it('should accept US territory country codes', async () => {
+      mockHttpClient.get.mockResolvedValue(mockV60Response);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await client.getSalesTaxByAddress({ address: '1 Main St', countryCode: 'PRI' });
+
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60', {
+        params: expect.objectContaining({ countryCode: 'PRI' }),
+      });
+    });
   });
 
   describe('getSalesTaxByGeoLocation', () => {
@@ -249,100 +351,106 @@ describe('ZiptaxClient', () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
       const result = await client.getSalesTaxByGeoLocation({
-        lat: '33.65253',
-        lng: '-117.74794',
+        lat: 33.65253,
+        lng: -117.74794,
       });
 
       expect(result).toEqual(mockV60Response);
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60/', {
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60', {
         params: {
-          lat: '33.65253',
-          lng: '-117.74794',
+          lat: 33.65253,
+          lng: -117.74794,
+          taxabilityCode: undefined,
           countryCode: 'USA',
           historical: undefined,
           format: 'json',
+          adjustment: undefined,
+          addressDetailExtended: undefined,
+          shippingExtended: undefined,
         },
       });
     });
 
     it('should throw error for missing lat', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      await expect(client.getSalesTaxByGeoLocation({ lat: '', lng: '-117.74794' })).rejects.toThrow(
-        ZiptaxValidationError
-      );
+      await expect(
+        client.getSalesTaxByGeoLocation({ lat: undefined as unknown as number, lng: -117.7 })
+      ).rejects.toThrow(ZiptaxValidationError);
     });
 
     it('should throw error for missing lng', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      await expect(client.getSalesTaxByGeoLocation({ lat: '33.65253', lng: '' })).rejects.toThrow(
+      await expect(
+        client.getSalesTaxByGeoLocation({ lat: 33.6, lng: undefined as unknown as number })
+      ).rejects.toThrow(ZiptaxValidationError);
+    });
+
+    it('should reject out-of-range latitude', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.getSalesTaxByGeoLocation({ lat: 91, lng: 0 })).rejects.toThrow(
         ZiptaxValidationError
       );
+    });
+
+    it('should reject out-of-range longitude', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.getSalesTaxByGeoLocation({ lat: 0, lng: -181 })).rejects.toThrow(
+        ZiptaxValidationError
+      );
+    });
+
+    it('should reject a non-numeric coordinate', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(
+        client.getSalesTaxByGeoLocation({ lat: '33.6' as unknown as number, lng: 0 })
+      ).rejects.toThrow(ZiptaxValidationError);
     });
   });
 
   describe('getRatesByPostalCode', () => {
-    it('should get tax rates by postal code', async () => {
+    it('should get rates by postal code', async () => {
       mockHttpClient.get.mockResolvedValue(mockPostalCodeResponse);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
-      const result = await client.getRatesByPostalCode({
-        postalcode: '92694',
-      });
+      const result = await client.getRatesByPostalCode({ postalcode: '92694' });
 
       expect(result).toEqual(mockPostalCodeResponse);
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60/', {
-        params: {
-          postalcode: '92694',
-          format: 'json',
-        },
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60', {
+        params: expect.objectContaining({ postalcode: '92694', format: 'json' }),
       });
     });
 
-    it('should throw error for missing postal code', async () => {
+    it('should pass state through to narrow overlapping jurisdictions', async () => {
+      mockHttpClient.get.mockResolvedValue(mockPostalCodeResponse);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      await client.getRatesByPostalCode({ postalcode: '92694', state: 'CA' });
+
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60', {
+        params: expect.objectContaining({ state: 'CA' }),
+      });
+    });
+
+    it('should reject a non-5-digit postal code', async () => {
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+      await expect(client.getRatesByPostalCode({ postalcode: '9269' })).rejects.toThrow(
+        ZiptaxValidationError
+      );
+      await expect(client.getRatesByPostalCode({ postalcode: 'abcde' })).rejects.toThrow(
+        ZiptaxValidationError
+      );
+    });
+
+    it('should reject a missing postal code', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
       await expect(client.getRatesByPostalCode({ postalcode: '' })).rejects.toThrow(
         ZiptaxValidationError
       );
     });
-
-    it('should validate postal code format (must be 5 digits)', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      await expect(client.getRatesByPostalCode({ postalcode: '1234' })).rejects.toThrow(
-        ZiptaxValidationError
-      );
-    });
-
-    it('should validate postal code format (must be numeric)', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      await expect(client.getRatesByPostalCode({ postalcode: 'ABCDE' })).rejects.toThrow(
-        ZiptaxValidationError
-      );
-    });
-
-    it('should validate postal code max length', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      await expect(client.getRatesByPostalCode({ postalcode: '123456' })).rejects.toThrow(
-        ZiptaxValidationError
-      );
-    });
-
-    it('should accept format parameter', async () => {
-      mockHttpClient.get.mockResolvedValue(mockPostalCodeResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-
-      await client.getRatesByPostalCode({ postalcode: '92694', format: 'xml' });
-
-      expect(mockHttpClient.get).toHaveBeenCalledWith('/request/v60/', {
-        params: {
-          postalcode: '92694',
-          format: 'xml',
-        },
-      });
-    });
   });
 
   describe('getAccountMetrics', () => {
-    it('should get account metrics', async () => {
+    it('should get v6.0 account metrics', async () => {
       mockHttpClient.get.mockResolvedValue(mockAccountMetrics);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
@@ -354,578 +462,204 @@ describe('ZiptaxClient', () => {
       });
     });
 
-    it('should accept format parameter', async () => {
+    it('should pass format when supplied', async () => {
       mockHttpClient.get.mockResolvedValue(mockAccountMetrics);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
       await client.getAccountMetrics({ format: 'xml' });
 
       expect(mockHttpClient.get).toHaveBeenCalledWith('/account/v60/metrics', {
-        params: {
-          format: 'xml',
-        },
+        params: { format: 'xml' },
       });
+    });
+  });
+
+  describe('getAccountUsage', () => {
+    it('should get the per-quota account usage breakdown', async () => {
+      mockHttpClient.get.mockResolvedValue(mockAccountUsage);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.getAccountUsage();
+
+      expect(result).toEqual(mockAccountUsage);
+      expect(result.merchant_request_count).toBe(120);
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/account/metrics');
     });
   });
 
   describe('searchProductCodes', () => {
-    const mockSearchResponse: ProductCodeSearchResponse = {
-      query: 'baked goods sold in plastic packaging',
+    const mockSearchResponse = {
+      $schema: 'https://api.zip-tax.com/schemas/ticsearch',
+      query: 'baked bread in plastic packaging',
+      nextCursor: 'eyJvZmZzZXQiOjEwfQ==',
       results: [
         {
-          ticId: '41030',
+          ticId: 41030,
           label: 'Bakery Items',
           naturalLabel: 'Bakery Items',
-          description: 'Bakery items sold without eating utensils provided by the seller',
-          documentation:
-            'Bakery items sold without eating utensils provided by the seller, not sold as a prepared food',
-          rank: '1',
-          score: '0.891025641025641',
-        },
-        {
-          ticId: '40030',
-          label: 'Food and Food Ingredients',
-          naturalLabel: 'Food and Food Ingredients',
-          description: 'Food and food ingredients for human consumption',
-          documentation:
-            'Food and food ingredients for human consumption that are not candy, dietary supplements, or soft drinks',
-          rank: '2',
-          score: '0.750512820512821',
+          description: 'Bakery items sold without eating utensils',
+          documentation: 'Bakery items sold without eating utensils provided by the seller.',
+          rank: 1,
+          score: 0.891025641025641,
         },
       ],
     };
 
-    it('should search product codes with valid query', async () => {
+    it('should search product codes', async () => {
       mockHttpClient.post.mockResolvedValue(mockSearchResponse);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
-      const result = await client.searchProductCodes('baked goods sold in plastic packaging');
+      const result = await client.searchProductCodes('baked bread in plastic packaging');
 
       expect(result).toEqual(mockSearchResponse);
       expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic', {
-        query: 'baked goods sold in plastic packaging',
+        query: 'baked bread in plastic packaging',
       });
     });
 
-    it('should POST to /search/tic', async () => {
+    it('should return numeric ticId, rank, and score', async () => {
       mockHttpClient.post.mockResolvedValue(mockSearchResponse);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
-      await client.searchProductCodes('test query');
+      const result = await client.searchProductCodes('bread');
+      const first = result.results![0];
 
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic', {
-        query: 'test query',
-      });
+      expect(typeof first.ticId).toBe('number');
+      expect(typeof first.rank).toBe('number');
+      expect(typeof first.score).toBe('number');
     });
 
-    it('should return correct response structure with multiple results', async () => {
-      mockHttpClient.post.mockResolvedValue(mockSearchResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-
-      const result = await client.searchProductCodes('baked goods');
-
-      expect(result.query).toBe('baked goods sold in plastic packaging');
-      expect(result.results).toHaveLength(2);
-      expect(result.results[0].ticId).toBe('41030');
-      expect(result.results[0].label).toBe('Bakery Items');
-      expect(result.results[0].naturalLabel).toBe('Bakery Items');
-      expect(result.results[0].description).toContain('Bakery items');
-      expect(result.results[0].documentation).toContain('Bakery items');
-      expect(result.results[0].rank).toBe('1');
-      expect(result.results[0].score).toBe('0.891025641025641');
-      expect(result.results[1].ticId).toBe('40030');
-      expect(result.results[1].rank).toBe('2');
-    });
-
-    it('should handle empty results list', async () => {
-      const emptyResponse: ProductCodeSearchResponse = {
-        query: 'nonexistent product',
-        results: [],
-      };
-      mockHttpClient.post.mockResolvedValue(emptyResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-
-      const result = await client.searchProductCodes('nonexistent product');
-
-      expect(result.results).toHaveLength(0);
-    });
-
-    it('should throw error for empty query', async () => {
+    it('should reject an empty query', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
       await expect(client.searchProductCodes('')).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for whitespace-only query', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
       await expect(client.searchProductCodes('   ')).rejects.toThrow(ZiptaxValidationError);
     });
 
-    it('should throw error for query exceeding 500 characters', async () => {
+    it('should reject a non-string query', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const longQuery = 'a'.repeat(501);
-      await expect(client.searchProductCodes(longQuery)).rejects.toThrow(ZiptaxValidationError);
+      await expect(client.searchProductCodes(42 as unknown as string)).rejects.toThrow(
+        ZiptaxValidationError
+      );
     });
 
-    it('should accept query at exactly 500 characters', async () => {
+    it('should accept a query up to 1024 characters', async () => {
       mockHttpClient.post.mockResolvedValue(mockSearchResponse);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const query = 'a'.repeat(500);
-      await expect(client.searchProductCodes(query)).resolves.toBeDefined();
+
+      await expect(client.searchProductCodes('a'.repeat(1024))).resolves.toBeDefined();
+      await expect(client.searchProductCodes('a'.repeat(1025))).rejects.toThrow(
+        ZiptaxValidationError
+      );
     });
   });
 
   describe('recommendProductCode', () => {
-    const mockRecommendResponse: ProductCodeRecommendationResponse = {
+    const mockRecommendResponse = {
       predictions: [
         {
-          status: 'success',
+          status: 'success' as const,
           error: null,
-          ticId: '41030',
+          ticId: 41030,
           label: 'Bakery Items',
           naturalLabel: 'Bakery Items',
-          tic_description: 'Bakery items sold without eating utensils provided by the seller',
-          product_description: 'baked goods sold in plastic packaging',
+          tic_description: 'Bakery items sold without eating utensils',
+          product_description: 'baked bread in plastic packaging',
         },
       ],
     };
 
-    it('should recommend product code with valid query', async () => {
+    it('should recommend a product code', async () => {
       mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
-      const result = await client.recommendProductCode('baked goods sold in plastic packaging');
+      const result = await client.recommendProductCode('baked bread in plastic packaging');
 
       expect(result).toEqual(mockRecommendResponse);
+      expect(typeof result.predictions[0].ticId).toBe('number');
       expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic/recommend', {
-        query: 'baked goods sold in plastic packaging',
+        query: 'baked bread in plastic packaging',
       });
     });
 
-    it('should POST to /search/tic/recommend', async () => {
-      mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-
-      await client.recommendProductCode('test query');
-
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/search/tic/recommend', {
-        query: 'test query',
-      });
-    });
-
-    it('should return correct response structure', async () => {
-      mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-
-      const result = await client.recommendProductCode('baked goods');
-
-      expect(result.predictions).toHaveLength(1);
-      const prediction = result.predictions[0];
-      expect(prediction.status).toBe('success');
-      expect(prediction.error).toBeNull();
-      expect(prediction.ticId).toBe('41030');
-      expect(prediction.label).toBe('Bakery Items');
-      expect(prediction.naturalLabel).toBe('Bakery Items');
-      expect(prediction.tic_description).toContain('Bakery items');
-      expect(prediction.product_description).toBe('baked goods sold in plastic packaging');
-    });
-
-    it('should handle prediction with error status', async () => {
-      const errorResponse: ProductCodeRecommendationResponse = {
-        predictions: [
-          {
-            status: 'fail',
-            error: 'Unable to determine product code',
-            ticId: '',
-            label: '',
-            naturalLabel: '',
-            tic_description: '',
-            product_description: 'some vague description',
-          },
-        ],
-      };
-      mockHttpClient.post.mockResolvedValue(errorResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-
-      const result = await client.recommendProductCode('some vague description');
-
-      expect(result.predictions[0].status).toBe('fail');
-      expect(result.predictions[0].error).toBe('Unable to determine product code');
-    });
-
-    it('should throw error for empty query', async () => {
+    it('should reject an empty query', async () => {
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
       await expect(client.recommendProductCode('')).rejects.toThrow(ZiptaxValidationError);
     });
+  });
 
-    it('should throw error for whitespace-only query', async () => {
+  describe('getTicData', () => {
+    const mockTicData = {
+      tic_list: [
+        {
+          tic: {
+            id: '0',
+            parent: '0',
+            title: 'Uncategorized tangible personal property',
+            label: 'General',
+            nl_title: 'Uncategorized Tangible Personal Property',
+            nl_label: 'General tangible personal property',
+          },
+        },
+      ],
+    };
+
+    it('should get the full TIC list', async () => {
+      mockHttpClient.get.mockResolvedValue(mockTicData);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      await expect(client.recommendProductCode('  \t\n  ')).rejects.toThrow(ZiptaxValidationError);
+
+      const result = await client.getTicData();
+
+      expect(result).toEqual(mockTicData);
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/data/tic', { params: undefined });
     });
 
-    it('should throw error for query exceeding 500 characters', async () => {
+    it('should pass format when supplied', async () => {
+      mockHttpClient.get.mockResolvedValue(mockTicData);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const longQuery = 'a'.repeat(501);
-      await expect(client.recommendProductCode(longQuery)).rejects.toThrow(ZiptaxValidationError);
-    });
 
-    it('should accept query at exactly 500 characters', async () => {
-      mockHttpClient.post.mockResolvedValue(mockRecommendResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const query = 'a'.repeat(500);
-      await expect(client.recommendProductCode(query)).resolves.toBeDefined();
+      await client.getTicData({ format: 'xml' });
+
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/data/tic', { params: { format: 'xml' } });
     });
   });
 
-  describe('calculateCart', () => {
-    const validCartRequest: CalculateCartRequest = {
-      items: [
-        {
-          customerId: 'customer-453',
-          currency: { currencyCode: 'USD' },
-          destination: {
-            address: '200 Spectrum Center Dr, Irvine, CA 92618-1905',
-          },
-          origin: {
-            address: '323 Washington Ave N, Minneapolis, MN 55401-2427',
-          },
-          lineItems: [
-            {
-              itemId: 'item-1',
-              price: 10.75,
-              quantity: 1.5,
-              taxabilityCode: 0,
-            },
-            {
-              itemId: 'item-2',
-              price: 25.0,
-              quantity: 2.0,
-            },
-          ],
-        },
-      ],
-    };
-
-    const mockCartResponse: CalculateCartResponse = {
-      items: [
-        {
-          cartId: 'ce4a1234-5678-90ab-cdef-1234567890ab',
-          customerId: 'customer-453',
-          destination: {
-            address: '200 Spectrum Center Dr, Irvine, CA 92618-1905',
-          },
-          origin: {
-            address: '323 Washington Ave N, Minneapolis, MN 55401-2427',
-          },
-          lineItems: [
-            {
-              itemId: 'item-1',
-              price: 10.75,
-              quantity: 1.5,
-              tax: { rate: 0.09025, amount: 1.45528 },
-            },
-            {
-              itemId: 'item-2',
-              price: 25.0,
-              quantity: 2.0,
-              tax: { rate: 0.09025, amount: 4.5125 },
-            },
-          ],
-        },
-      ],
-    };
-
-    it('should calculate cart tax via ZipTax API', async () => {
-      mockHttpClient.post.mockResolvedValue(mockCartResponse);
+  describe('getTicSearchSchema', () => {
+    it('should get the TIC search JSON Schema', async () => {
+      const schema = { type: 'object', required: ['query', 'results'] };
+      mockHttpClient.get.mockResolvedValue(schema);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
 
-      const result = await client.calculateCart(validCartRequest);
+      const result = await client.getTicSearchSchema();
 
-      expect(result).toEqual(mockCartResponse);
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/calculate/cart', validCartRequest);
+      expect(result).toEqual(schema);
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/schemas/ticsearch');
     });
+  });
 
-    it('should return correct response structure', async () => {
-      mockHttpClient.post.mockResolvedValue(mockCartResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-
-      const result = (await client.calculateCart(validCartRequest)) as CalculateCartResponse;
-
-      expect(result.items).toHaveLength(1);
-      expect(result.items[0].cartId).toBe('ce4a1234-5678-90ab-cdef-1234567890ab');
-      expect(result.items[0].customerId).toBe('customer-453');
-      expect(result.items[0].lineItems).toHaveLength(2);
-      expect(result.items[0].lineItems[0].tax.rate).toBe(0.09025);
-      expect(result.items[0].lineItems[0].tax.amount).toBe(1.45528);
-    });
-
-    it('should throw error when items array is empty', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      await expect(client.calculateCart({ items: [] })).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error when items array has more than 1 element', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [{ ...validCartRequest.items[0] }, { ...validCartRequest.items[0] }],
+  describe('system endpoints', () => {
+    it('should get health', async () => {
+      const health = {
+        status: 'ok',
+        components: { taxdata: 'ok' as const, taxdata_count: 83633, dynamo: 'ok' as const },
       };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
+      mockHttpClient.get.mockResolvedValue(health);
+      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
+
+      const result = await client.getHealth();
+
+      expect(result).toEqual(health);
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/system/health');
     });
 
-    it('should throw error for missing customerId', async () => {
+    it('should get system metadata', async () => {
+      const metadata = { go_version: 'go1.25.0', hostname: 'ip-172-30-5-43.ec2.internal' };
+      mockHttpClient.get.mockResolvedValue(metadata);
       const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            customerId: '',
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
 
-    it('should accept CAD currency code', async () => {
-      mockHttpClient.post.mockResolvedValue({ items: [] });
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            currency: { currencyCode: 'CAD' },
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).resolves.toBeDefined();
-    });
+      const result = await client.getSystemMetadata();
 
-    it('should throw error for invalid currency code', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            currency: { currencyCode: 'EUR' },
-          },
-        ],
-      } as unknown as CalculateCartRequest;
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for missing destination address', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            destination: { address: '' },
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for missing origin address', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            origin: { address: '' },
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for empty lineItems', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error when lineItems exceeds 250', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const manyItems = Array.from({ length: 251 }, (_, i) => ({
-        itemId: `item-${i}`,
-        price: 10.0,
-        quantity: 1.0,
-      }));
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: manyItems,
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for missing lineItem itemId', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: '', price: 10.0, quantity: 1.0 }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for zero price', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: 0, quantity: 1.0 }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for negative price', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: -5.0, quantity: 1.0 }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for zero quantity', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: 0 }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for negative quantity', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: -1.0 }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for NaN price', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: NaN, quantity: 1.0 }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for Infinity price', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: Infinity, quantity: 1.0 }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for NaN quantity', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: NaN }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should throw error for Infinity quantity', async () => {
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: Infinity }],
-          },
-        ],
-      };
-      await expect(client.calculateCart(request)).rejects.toThrow(ZiptaxValidationError);
-    });
-
-    it('should accept fractional quantity', async () => {
-      mockHttpClient.post.mockResolvedValue(mockCartResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [{ itemId: 'item-1', price: 10.0, quantity: 0.5 }],
-          },
-        ],
-      };
-      const result = await client.calculateCart(request);
-      expect(result).toEqual(mockCartResponse);
-    });
-
-    it('should accept optional taxabilityCode on line items', async () => {
-      mockHttpClient.post.mockResolvedValue(mockCartResponse);
-      const client = new ZiptaxClient({ apiKey: 'test-api-key' });
-      const request: CalculateCartRequest = {
-        items: [
-          {
-            ...validCartRequest.items[0],
-            lineItems: [
-              {
-                itemId: 'item-1',
-                price: 10.0,
-                quantity: 1.0,
-                taxabilityCode: 0,
-              },
-              {
-                itemId: 'item-2',
-                price: 20.0,
-                quantity: 1.0,
-                // No taxabilityCode - should be accepted
-              },
-            ],
-          },
-        ],
-      };
-      const result = await client.calculateCart(request);
-      expect(result).toEqual(mockCartResponse);
+      expect(result).toEqual(metadata);
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/system/metadata');
     });
   });
 });

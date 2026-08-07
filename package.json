@@ -1,6 +1,6 @@
 {
   "name": "@ziptax/node-sdk",
-  "version": "0.2.3-beta",
+  "version": "1.0.0-beta",
   "description": "Official Node.js SDK for the ZipTax API",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -36,7 +36,9 @@
     "example:basic": "tsx examples/basic-usage.ts",
     "example:async": "tsx examples/async-usage.ts",
     "example:errors": "tsx examples/error-handling.ts",
-    "example:taxcloud": "tsx examples/taxcloud-orders.ts",
+    "example:merchants": "tsx examples/merchant-management.ts",
+    "example:merchant": "tsx examples/merchant-transactions.ts",
+    "example:webhooks": "tsx examples/webhooks.ts",
     "prepublishOnly": "npm run build && npm run test && npm run lint && npm run type-check"
   },
   "keywords": [

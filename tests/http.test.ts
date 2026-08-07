@@ -132,14 +132,47 @@ describe('HTTPClient', () => {
       await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAuthenticationError);
     });
 
-    it('should throw ZiptaxAuthenticationError for 403', async () => {
+    it('should throw ZiptaxAPIError, not an auth error, for 403', async () => {
+      // On the Merchant endpoints 403 means the merchant is unknown, not owned
+      // by the account, or the operation is unavailable for a self-managed
+      // merchant. None of those are credential problems.
       mockAxiosInstance.request.mockRejectedValue({
         isAxiosError: true,
-        response: { status: 403, data: { message: 'Forbidden' } },
+        response: { status: 403, data: { status: 'error', message: 'merchant not found' } },
       });
       mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAuthenticationError);
+      await expect(httpClient.get('/test')).rejects.toThrow(ZiptaxAPIError);
+      await expect(httpClient.get('/test')).rejects.not.toThrow(ZiptaxAuthenticationError);
+      await expect(httpClient.get('/test')).rejects.toThrow('merchant not found');
+    });
+
+    it('should surface the operation-level error detail from a 422', async () => {
+      mockAxiosInstance.request.mockRejectedValue({
+        isAxiosError: true,
+        response: {
+          status: 422,
+          data: {
+            status: 422,
+            title: 'Unprocessable Entity',
+            detail: 'One or more line items are invalid.',
+            error: [],
+          },
+        },
+      });
+      mockedAxios.isAxiosError.mockReturnValue(true);
+
+      await expect(httpClient.get('/test')).rejects.toThrow('One or more line items are invalid.');
+    });
+
+    it('should fall back to title when only a title is present', async () => {
+      mockAxiosInstance.request.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 500, data: { title: 'Internal Server Error' } },
+      });
+      mockedAxios.isAxiosError.mockReturnValue(true);
+
+      await expect(httpClient.get('/test')).rejects.toThrow('Internal Server Error');
     });
 
     it('should throw ZiptaxRateLimitError for 429', async () => {

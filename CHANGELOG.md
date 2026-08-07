@@ -5,6 +5,97 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta] - 2026-08-07
+
+Realigns the SDK with the current Ziptax API. TaxCloud access has moved from a
+direct connection to Ziptax-proxied merchant endpoints, which makes this a
+breaking release. See **Migrating from 0.2.x** in the README.
+
+### Added
+
+Merchant Management (`@experimental`, Private Preview):
+- `createMerchant()`, `updateMerchant()`, `getMerchant()`, `listMerchants()`, `deleteMerchant()`
+- `setMerchantCredentials()`, `deleteMerchantCredentials()` - store or remove a merchant's TaxCloud credentials server-side
+- `MerchantType`, `MerchantStatus`, `Merchant`, `MerchantUpdate`, and request/response types
+
+Exemption certificates (`@experimental`):
+- `createExemptionCertificate()`, `getExemptionCertificate()`, `listExemptionCertificates()`, `deleteExemptionCertificate()`
+- `CustomerBusinessType`, `ExemptionReason`, `ExemptState`, `CertificateResponse`, `ListCertificatesResponse` types
+- Cursor pagination on list via `cursor` / `nextCursor`
+
+Event Webhooks:
+- `verifyWebhookSignature()` - timing-safe HMAC-SHA256 verification of the `X-Signature` header
+- `computeWebhookSignature()`, `parseWebhookEvent()`, `parseWebhookTimestamp()` helpers
+- `WebhookEvent`, `RateUpdatedEvent`, `RateUpdateDetail`, `WebhookLocality` types
+- Endpoints and subscriptions are configured in the dashboard under Develop > Events; there is no API for them
+
+Data and system endpoints:
+- `getTicData()` - full TIC list with category hierarchy (`GET /data/tic`)
+- `getTicSearchSchema()` - JSON Schema for the TIC search response
+- `getHealth()`, `getSystemMetadata()` - `GET /system/health` and `GET /system/metadata`
+- `getAccountUsage()` - `GET /account/metrics`, with core, geo, and **merchant** quotas broken out separately
+
+Rate lookups:
+- `city`, `state`, `stateCode`, and `county` on `getSalesTaxByAddress()` to disambiguate a location
+- `state` on `getRatesByPostalCode()` to narrow overlapping jurisdictions
+- `adjustment`, `addressDetailExtended`, `shippingExtended`, and `satItemTotal` parameters
+- `V60ProductDetail`, `V60TaxabilityCode`, and `V60RateRule` types for the `productDetail` object returned when `taxabilityCode` is supplied
+- `V60AddressComponents` for the geocoding breakdown returned by `addressDetailExtended`
+- `V60ShippingExtended` for the detailed shipping object returned by `shippingExtended`
+- `countryCode` now accepts the US territories `PRI`, `ASM`, `GUM`, `MNP`, and `VIR` alongside `USA` and `CAN`
+
+Other:
+- `environment` client option and a per-call `RequestOptions` override, sending `X-ENV: LIVE | TEST` on Merchant Transactions calls
+- Cart and order support for `discounts` (line-item and order-level), `exemption`, `deliveredBySeller`, `batchId`, `channel`, `excludeFromFiling`, and credit orders via `kind`
+- `isTaxCloudCartResponse()` type guard to narrow a cart result by merchant compliance model
+- `retryOptions` on `RequestOptions`, to override the retry policy for a single merchant call
+- `NO_RETRY` and `RETRY_ON_NO_RESPONSE` retry policies, exported so callers can reuse what the client applies
+- `V60Taxability`, `V60TaxType`, and `V60JurisdictionType` exported types
+- `validateUuid()`, `validateNumberRange()`, and `validateHistorical()` validation helpers
+- Examples: `merchant-management.ts`, `merchant-transactions.ts`, `webhooks.ts`
+
+### Changed
+
+**Breaking.** Cart, order, and refund calls now go through the Ziptax API rather
+than `api.v3.taxcloud.com`:
+- Removed the `taxCloudConnectionId` and `taxCloudAPIKey` client options. Store a merchant's credentials once with `setMerchantCredentials()`; Ziptax resolves them server-side on every call
+- Every cart, order, certificate, and refund request now takes a `merchantId` (UUID)
+- `calculateCart()` targets `POST /merchant/cart/calculate`. Addresses are structured (`line1`, `city`, `state`, `zip`) instead of a single `address` string; line items require a unique `index` and use `tic` instead of `taxabilityCode`; `items` accepts 1-100 carts instead of exactly 1
+- `calculateCart()` returns `AnyCalculateCartResponse`; a self-managed merchant returns the stateless `SelfManagedCalculateCartResponse` shape with no `connectionId` and no convertible cart
+- `getOrder(request)` and `updateOrder(request)` take a single request object and are `POST` calls (`/merchant/order/get`, `/merchant/order/update`) rather than `GET` and `PATCH`
+- `refundOrder(request)` takes a single request object, targets `POST /merchant/refund/create`, and returns one `RefundResponse` instead of `RefundTransactionResponse[]`
+- `getSalesTaxByGeoLocation()` takes `lat` and `lng` as numbers rather than strings, validated to ±90 and ±180
+- HTTP 403 now raises `ZiptaxAPIError` instead of `ZiptaxAuthenticationError`. On the merchant endpoints 403 means the merchant is unknown, not owned by the account, or the operation is unavailable for a self-managed merchant, none of which are credential problems
+- `V60Response.baseRates`, `taxSummaries`, and `sourcingRules` are required and nullable rather than optional, matching the API
+- Renamed `src/models/taxcloud.ts` to `src/models/transactions.ts`
+- Cart and order type names dropped their `TaxCloud`/`CartItem` prefixes: `CartItem` is now `Cart`, `CartItemWithTax` is now `OrderLineItem`, `RefundTransactionRequest` is now `CreateRefundRequest`, `RefundTransactionResponse` is now `RefundResponse`
+- Line-item `price` and `quantity` now accept `0`, matching the API's documented minimum of 0
+- `validateProductQuery()` allows 1024 characters, up from 500, matching the API limit
+
+### Fixed
+- **Non-idempotent merchant writes are no longer retried automatically.** `HTTPClient` applied one retry policy to every request, and the default retries network errors and any `5xx`. That silently re-sent `createOrder`, `createOrderFromCart`, `updateOrder`, `createExemptionCertificate`, `deleteExemptionCertificate`, and `refundOrder` on a `502`, `504`, or timeout — exactly the statuses whose outcome is unknown, where a second attempt can duplicate an order, a certificate, or a refund. The SDK now selects a policy per operation: writes never retry, `calculateCart` retries only when no response arrived at all, and reads keep the previous behavior. A per-call `retryOptions` on `RequestOptions` lets a caller with its own idempotency handling opt back in
+- `V60BaseRate.jurType` and `V60TaxSummary.taxType` are open-ended unions rather than closed enums. `countryCode=CAN` is served by a separate path that returns `GST`/`PST` for `jurType` and `Sales` for `taxType`, none of which appear in the published OpenAPI enums, so the closed unions made valid Canadian responses unassignable. Known values still autocomplete
+- `V60Response.service` and `.sourcingRules` are optional. The Canadian response omits both entirely, so typing them as required misdescribed every `countryCode=CAN` lookup
+- `MerchantType` offers only `'taxcloud'` and `'self-managed'`. The API's enum also accepts `'connected'` and `'offline'`, but those are legacy aliases it normalizes to the two documented values, so the SDK no longer surfaces them. Safe to narrow because `merchant_type` is request-only and never returned
+- `V60Shipping.taxable` accepts `'L'`, matching `V60Service.taxable`. Both are assigned verbatim from the same tax-table taxability vocabulary; only the service branch rendered distinct text for `L`, which hid that the value reaches `shipping.taxable` too. `V60PostalCodeResult.txbService` and `.txbFreight` likewise. All four now share a single `V60Taxability` type
+- `ProductCodeSearchResult.ticId`, `.rank`, and `.score` are typed `number`; they were `string` but the API returns numbers
+- `ProductCodeRecommendation.ticId` is typed `number` for the same reason
+- Rate lookups request `/request/v60` without a trailing slash. `/request/v60/` returns a 301, so every call was paying an extra redirect
+- `taxabilityCode` validation accepts alphanumeric override codes such as `CIR00001`; it previously rejected anything non-numeric
+- `V60Service.taxable` includes `'L'` (taxability varies by locality)
+- API error messages now surface `detail` and `title`, so operation-level 422 responses no longer collapse to a generic status message
+- `ProductCodeSearchResponse` exposes `nextCursor` and `$schema`
+
+### Removed
+- `parseAddressString()` and the `ParsedAddress` type. The cart endpoints take structured addresses directly, so no parsing step is needed
+- Legacy `POST /calculate/cart` routing. That endpoint is absent from the API reference; use `calculateCart()` with a `merchantId`
+- `examples/taxcloud-orders.ts`, replaced by `examples/merchant-transactions.ts`
+
+### Notes
+- Merchant Management is a Private Preview feature and Merchant Transactions is in active development. Both are annotated `@experimental`; their contracts may change before general availability. Contact support@zip.tax for access
+- Nexus Management and Economic Thresholds are managed in the platform UI and have no API surface, so the SDK does not cover them
+- `POST /merchant/credentials/get` is intentionally not exposed; it is absent from the public API reference
+
 ## [0.2.3-beta] - 2026-04-17
 
 ### Added

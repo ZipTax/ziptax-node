@@ -26,6 +26,18 @@ export interface HTTPClientConfig {
 }
 
 /**
+ * Axios config plus a per-request retry override.
+ *
+ * The override is merged over the client's `retryOptions`, so a single endpoint
+ * can opt out of retrying without changing the policy for everything else. It is
+ * stripped before the config reaches axios.
+ */
+export interface HTTPRequestOptions extends AxiosRequestConfig {
+  /** Retry policy for this request only */
+  retryOptions?: RetryOptions;
+}
+
+/**
  * HTTP client for making API requests
  */
 export class HTTPClient {
@@ -84,28 +96,36 @@ export class HTTPClient {
   /**
    * Make a GET request
    */
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.request<T>({ ...config, method: 'GET', url });
+  async get<T>(url: string, config?: HTTPRequestOptions): Promise<T> {
+    const { retryOptions, ...axiosConfig } = config ?? {};
+    return this.request<T>({ ...axiosConfig, method: 'GET', url }, retryOptions);
   }
 
   /**
    * Make a POST request
    */
-  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return this.request<T>({ ...config, method: 'POST', url, data });
+  async post<T>(url: string, data?: unknown, config?: HTTPRequestOptions): Promise<T> {
+    const { retryOptions, ...axiosConfig } = config ?? {};
+    return this.request<T>({ ...axiosConfig, method: 'POST', url, data }, retryOptions);
   }
 
   /**
    * Make a PATCH request
    */
-  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return this.request<T>({ ...config, method: 'PATCH', url, data });
+  async patch<T>(url: string, data?: unknown, config?: HTTPRequestOptions): Promise<T> {
+    const { retryOptions, ...axiosConfig } = config ?? {};
+    return this.request<T>({ ...axiosConfig, method: 'PATCH', url, data }, retryOptions);
   }
 
   /**
-   * Make a request with retry logic
+   * Make a request with retry logic.
+   *
+   * @param config - Axios request config
+   * @param retryOverride - Per-request retry policy, merged over the client's
+   *   own. Non-idempotent writes pass `NO_RETRY` here so a request whose outcome
+   *   is unknown is never silently re-sent.
    */
-  private async request<T>(config: AxiosRequestConfig): Promise<T> {
+  private async request<T>(config: AxiosRequestConfig, retryOverride?: RetryOptions): Promise<T> {
     const makeRequest = async (): Promise<T> => {
       try {
         const response: AxiosResponse<T> = await this.axiosInstance.request(config);
@@ -116,7 +136,7 @@ export class HTTPClient {
       }
     };
 
-    return retryWithBackoff(makeRequest, this.retryOptions);
+    return retryWithBackoff(makeRequest, { ...this.retryOptions, ...retryOverride });
   }
 
   /**
@@ -165,8 +185,11 @@ export class HTTPClient {
 
     const { status, data } = axiosError.response;
 
-    // Authentication errors
-    if (status === 401 || status === 403) {
+    // Authentication errors. 403 is deliberately excluded: on the Merchant
+    // endpoints it means the merchant is unknown, not owned by the account, or
+    // the operation is unavailable for a self-managed merchant, none of which
+    // are credential problems.
+    if (status === 401) {
       return new ZiptaxAuthenticationError(
         this.extractErrorMessage(data) || 'Authentication failed'
       );
@@ -190,20 +213,34 @@ export class HTTPClient {
   }
 
   /**
-   * Extract error message from response data
+   * Extract an error message from response data.
+   *
+   * Covers the three envelopes the API can return: the Ziptax-level
+   * `{ status, message }` shape, the operation-level
+   * `{ status, title, detail, error }` shape used by the Merchant endpoints,
+   * and RFC7807 `{ title, detail }` problem details.
    */
   private extractErrorMessage(data: unknown): string | undefined {
     if (typeof data === 'string') {
-      return data;
+      return data || undefined;
     }
-    if (typeof data === 'object' && data !== null) {
-      const obj = data as Record<string, unknown>;
-      if ('message' in obj && typeof obj.message === 'string') {
-        return obj.message;
-      }
-      if ('error' in obj && typeof obj.error === 'string') {
-        return obj.error;
-      }
+    if (typeof data !== 'object' || data === null) {
+      return undefined;
+    }
+
+    const obj = data as Record<string, unknown>;
+
+    if (typeof obj.message === 'string' && obj.message) {
+      return obj.message;
+    }
+    if (typeof obj.detail === 'string' && obj.detail) {
+      return obj.detail;
+    }
+    if (typeof obj.title === 'string' && obj.title) {
+      return obj.title;
+    }
+    if (typeof obj.error === 'string' && obj.error) {
+      return obj.error;
     }
     return undefined;
   }
