@@ -43,7 +43,41 @@ jobs:
       - name: Build package
         run: npm run build
 
+      # npm publish always writes the `latest` dist-tag unless --tag says
+      # otherwise. It does NOT route prerelease versions anywhere else on its
+      # own, so without this a version like 1.0.0-beta becomes what a plain
+      # `npm install @ziptax/node-sdk` resolves to.
+      - name: Determine npm dist-tag
+        id: dist-tag
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          # The first prerelease identifier becomes the dist-tag:
+          #   1.0.0         -> latest
+          #   1.0.0-beta    -> beta
+          #   1.0.0-beta.0  -> beta
+          #   1.0.0-rc.1    -> rc
+          #   1.0.0-0       -> beta   (npm rejects a tag that parses as a
+          #                            semver range, and `npm version
+          #                            prerelease` without --preid yields this)
+          TAG=$(node -p "
+            const v = require('./package.json').version;
+            const m = /^[0-9]+\.[0-9]+\.[0-9]+-([0-9A-Za-z-]+)/.exec(v);
+            if (!m) { 'latest' }
+            else {
+              const id = m[1].toLowerCase();
+              // A dist-tag must not parse as a semver range, so it has to start
+              // with a letter. Anything else falls back to the project default.
+              /^[a-z][a-z0-9-]*$/.test(id) ? id : 'beta';
+            }
+          ")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Publishing $VERSION under dist-tag '$TAG'"
+          echo "Publishing \`$VERSION\` under dist-tag \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag "$DIST_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ steps.dist-tag.outputs.tag }}
