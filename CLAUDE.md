@@ -179,7 +179,15 @@ npm run test           # Verify tests pass
 2. Merge PR to `main` (after passing all checks)
 3. Create a GitHub Release with version tag (e.g., `v0.2.0-beta`)
 4. Publish workflow automatically runs and publishes to npm
-5. Prerelease versions (e.g., `-beta`) are published under the `beta` dist-tag, not `latest`
+5. The workflow derives the dist-tag from the version in `package.json`: a
+   prerelease publishes under its identifier (`1.0.0-beta` → `beta`,
+   `1.0.0-rc.1` → `rc`), a stable version publishes under `latest`. Check the
+   "Determine npm dist-tag" step's summary to confirm which tag was used.
+
+`npm publish` writes `latest` unless `--tag` says otherwise; it does **not**
+route prereleases anywhere else on its own. Keep the `--tag` argument in
+`publish.yml`, or a `-beta` version becomes what a plain
+`npm install @ziptax/node-sdk` resolves to.
 
 **Manual publishing (if needed):**
 
@@ -188,7 +196,15 @@ npm run test           # Verify tests pass
 3. Run `npm run prepublishOnly` (builds, tests, lints)
 4. Create git tag: `git tag v0.x.x-beta`
 5. Push with tags: `git push origin main --tags`
-6. Publish: `npm publish --access public` (or `npm publish --access public --tag beta` for prereleases)
+6. Publish. **Always pass `--tag` for a prerelease**, otherwise it lands on
+   `latest`:
+   - prerelease: `npm publish --access public --tag beta`
+   - stable: `npm publish --access public`
+
+Always use `npm version prerelease --preid=beta`, never a bare
+`npm version prerelease`. The bare form produces `0.2.4-0`, whose numeric
+prerelease identifier is not a usable dist-tag (npm rejects a tag that parses as
+a semver range).
 
 ## Testing Strategy
 
