@@ -206,6 +206,34 @@ Always use `npm version prerelease --preid=beta`, never a bare
 prerelease identifier is not a usable dist-tag (npm rejects a tag that parses as
 a semver range).
 
+### Managing dist-tags
+
+Inspect what the registry currently serves:
+
+```bash
+npm dist-tag ls @ziptax/node-sdk
+```
+
+`latest` is what a bare `npm install @ziptax/node-sdk` resolves to. The publish
+workflow never writes `latest` for a prerelease, so promoting a prerelease to the
+default install is a **separate, deliberate step** taken after the version is
+live:
+
+```bash
+npm dist-tag add @ziptax/node-sdk@1.0.0-beta latest
+```
+
+Two things to know before running it:
+
+- The change is **immediate** and applies to every consumer. There is no staging
+  or rollback beyond pointing the tag back at the previous version.
+- The version must already be published, or the command fails.
+
+Whether a given prerelease belongs on `latest` is a per-release judgement, not a
+default. Weigh how breaking it is against leaving new installs on an older
+version. Do not automate this in `publish.yml` — routing every release to
+`latest` is the bug that made a `-beta` the default install in the first place.
+
 ## Testing Strategy
 
 ### Test Structure
