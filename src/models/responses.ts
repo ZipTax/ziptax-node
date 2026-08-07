@@ -254,7 +254,7 @@ export interface V60Response {
   /** Shipping taxability information */
   shipping: V60Shipping;
   /** Sourcing rules (origin vs destination) */
-  sourcingRules: V60SourcingRules;
+  sourcingRules: V60SourcingRules | null;
   /** Tax rate summaries */
   taxSummaries: V60TaxSummary[] | null;
   /** Address details */
