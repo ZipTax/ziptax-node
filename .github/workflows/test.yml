@@ -66,6 +66,9 @@ jobs:
     name: Package Smoke Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
+      # Report every version. Module resolution differs between Node majors, so
+      # one failing leg should not cancel the others and hide the pattern.
+      fail-fast: false
       matrix:
         node-version: ['18.x', '20.x', '22.x']
     steps:

@@ -26,6 +26,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   published version, including the 0.2.0-beta that the `latest` dist-tag pointed
   at, has the same defect.
 
+- **The ESM build was parsed as CommonJS.** Even with loadable specifiers, the
+  root `package.json` has no `"type"` field, so Node classified every `.js` file
+  in the package — including `dist/esm` — as CommonJS. An `import` resolved to the
+  ESM build and was then read as CJS, and Node's named-export detection found
+  some bindings but not others:
+
+  ```
+  SyntaxError: Named export 'NO_RETRY' not found. The requested module
+  '@ziptax/node-sdk' is a CommonJS module...
+  ```
+
+  The build now writes `dist/esm/package.json` with `{"type": "module"}` and
+  `dist/cjs/package.json` with `{"type": "commonjs"}`, the standard dual-package
+  layout, scoping the module type per directory. Marking the CommonJS side
+  explicitly keeps it correct if the root package ever adopts `"type": "module"`.
+
+  Node 22 and later tolerated the missing marker; Node 18, the minimum supported
+  version, did not. Caught by the new smoke test's version matrix, not locally.
+
 - **`exports` map reordered so `types` resolves first.** Conditions in an exports
   map match in order, and `require`/`import` preceded `types`. Type resolution
   happened to work through the top-level `types` field, but the map is what
