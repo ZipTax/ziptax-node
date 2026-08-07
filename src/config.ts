@@ -2,7 +2,7 @@
  * Configuration types and defaults for ZipTax SDK
  */
 
-import { RetryOptions } from './utils/retry';
+import { RetryOptions } from './utils/retry.js';
 
 /**
  * Merchant environment targeted by Merchant Transactions endpoints.

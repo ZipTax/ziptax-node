@@ -7,8 +7,8 @@
  */
 
 import { createHmac, timingSafeEqual } from 'crypto';
-import { ZiptaxValidationError } from '../exceptions';
-import { AnyWebhookEvent } from '../models/webhooks';
+import { ZiptaxValidationError } from '../exceptions.js';
+import { AnyWebhookEvent } from '../models/webhooks.js';
 
 /** Header carrying the delivery signature */
 export const WEBHOOK_SIGNATURE_HEADER = 'X-Signature';

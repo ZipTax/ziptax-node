@@ -2,7 +2,7 @@
  * Input validation utilities
  */
 
-import { ZiptaxValidationError } from '../exceptions';
+import { ZiptaxValidationError } from '../exceptions.js';
 
 /** Maximum length accepted by the TIC search and recommend endpoints */
 export const MAX_PRODUCT_QUERY_LENGTH = 1024;

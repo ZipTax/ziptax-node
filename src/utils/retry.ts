@@ -2,7 +2,7 @@
  * Retry utility for handling transient failures
  */
 
-import { ZiptaxRetryError } from '../exceptions';
+import { ZiptaxRetryError } from '../exceptions.js';
 
 export interface RetryOptions {
   /** Maximum number of retry attempts */

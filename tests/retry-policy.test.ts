@@ -10,6 +10,7 @@
 import axios from 'axios';
 import { ZiptaxClient } from '../src/client';
 import { ZiptaxAPIError, ZiptaxNetworkError } from '../src/exceptions';
+import { ZiptaxConfig } from '../src/config';
 
 jest.mock('axios');
 
@@ -65,12 +66,15 @@ const certRequest = {
 };
 
 /** A gateway error: the service answered, so it may already have committed. */
-function gatewayError(status: number) {
+function gatewayError(status: number): {
+  isAxiosError: boolean;
+  response: { status: number; data: { message: string } };
+} {
   return { isAxiosError: true, response: { status, data: { message: 'gateway' } } };
 }
 
 /** A client-side timeout or connection failure: no response was received. */
-function networkError() {
+function networkError(): { isAxiosError: boolean; message: string; response: undefined } {
   return { isAxiosError: true, message: 'timeout of 30000ms exceeded', response: undefined };
 }
 
@@ -91,7 +95,7 @@ describe('retry policy', () => {
   });
 
   // Retries use exponential backoff with a 1s initial delay, so shrink it.
-  function makeClient(overrides = {}) {
+  function makeClient(overrides: Partial<ZiptaxConfig> = {}): ZiptaxClient {
     return new ZiptaxClient({
       apiKey: 'test-api-key',
       retryOptions: { initialDelay: 1, maxDelay: 2 },
@@ -101,10 +105,10 @@ describe('retry policy', () => {
 
   describe('non-idempotent writes are never auto-retried', () => {
     const writes: Array<[string, (c: ZiptaxClient) => Promise<unknown>]> = [
-      ['createOrder', (c) => c.createOrder(orderRequest)],
+      ['createOrder', (c): Promise<unknown> => c.createOrder(orderRequest)],
       [
         'createOrderFromCart',
-        (c) =>
+        (c): Promise<unknown> =>
           c.createOrderFromCart({
             merchantId: MERCHANT_ID,
             cartId: 'cart-abc',
@@ -113,18 +117,25 @@ describe('retry policy', () => {
       ],
       [
         'updateOrder',
-        (c) =>
+        (c): Promise<unknown> =>
           c.updateOrder({
             merchantId: MERCHANT_ID,
             orderId: 'order-1001',
             completedDate: '2026-08-08T00:00:00Z',
           }),
       ],
-      ['refundOrder', (c) => c.refundOrder({ merchantId: MERCHANT_ID, orderId: 'order-1001' })],
-      ['createExemptionCertificate', (c) => c.createExemptionCertificate(certRequest)],
+      [
+        'refundOrder',
+        (c): Promise<unknown> => c.refundOrder({ merchantId: MERCHANT_ID, orderId: 'order-1001' }),
+      ],
+      [
+        'createExemptionCertificate',
+        (c): Promise<unknown> => c.createExemptionCertificate(certRequest),
+      ],
       [
         'deleteExemptionCertificate',
-        (c) => c.deleteExemptionCertificate({ merchantId: MERCHANT_ID, certificateId: 'cert-1' }),
+        (c): Promise<unknown> =>
+          c.deleteExemptionCertificate({ merchantId: MERCHANT_ID, certificateId: 'cert-1' }),
       ],
     ];
 

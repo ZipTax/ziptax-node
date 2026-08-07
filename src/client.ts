@@ -2,9 +2,9 @@
  * Main ZipTax API client
  */
 
-import { HTTPClient, HTTPRequestOptions } from './utils/http';
-import { RetryOptions, NO_RETRY, RETRY_ON_NO_RESPONSE } from './utils/retry';
-import { ZiptaxValidationError } from './exceptions';
+import { HTTPClient, HTTPRequestOptions } from './utils/http.js';
+import { RetryOptions, NO_RETRY, RETRY_ON_NO_RESPONSE } from './utils/retry.js';
+import { ZiptaxValidationError } from './exceptions.js';
 import {
   validateApiKey,
   validateRequired,
@@ -14,7 +14,7 @@ import {
   validateNumberRange,
   validateProductQuery,
   validateUuid,
-} from './utils/validation';
+} from './utils/validation.js';
 import {
   ZiptaxConfig,
   DEFAULT_CONFIG,
@@ -25,7 +25,7 @@ import {
   GetRatesByPostalCodeParams,
   GetAccountMetricsParams,
   GetTicDataParams,
-} from './config';
+} from './config.js';
 import {
   V60Response,
   V60PostalCodeResponse,
@@ -62,7 +62,7 @@ import {
   ListCertificatesRequest,
   CertificateResponse,
   ListCertificatesResponse,
-} from './models';
+} from './models/index.js';
 
 /** Maximum carts accepted in a single cart calculation request */
 const MAX_CARTS_PER_REQUEST = 100;

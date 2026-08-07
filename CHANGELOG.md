@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1-beta] - 2026-08-07
+
+### Fixed
+
+- **The ESM build could not be imported.** `import { ZiptaxClient } from '@ziptax/node-sdk'`
+  failed with `ERR_MODULE_NOT_FOUND` in any ESM consumer, because TypeScript does
+  not rewrite relative import specifiers and `dist/esm` therefore shipped 24
+  extensionless imports that Node's ESM resolver rejects. Only `require()` worked,
+  despite `package.json` advertising `"module"` and `exports.import`.
+
+  Sources now write relative imports with an explicit `.js` extension
+  (`./client.js`), and directory imports point at `index.js` explicitly, which
+  Node's ESM resolver also requires. TypeScript maps `./client.js` back to
+  `./client.ts` when compiling, so this fixes the ESM output without changing the
+  CommonJS build. Jest gets a `moduleNameMapper` to strip the extension, since it
+  does not do that substitution itself.
+
+  Present since at least 0.1.2-beta and not specific to 1.0.0-beta: every
+  published version, including the 0.2.0-beta that the `latest` dist-tag pointed
+  at, has the same defect.
+
+- **`exports` map reordered so `types` resolves first.** Conditions in an exports
+  map match in order, and `require`/`import` preceded `types`. Type resolution
+  happened to work through the top-level `types` field, but the map is what
+  `node16`/`nodenext` resolution reads.
+
+- **`./package.json` is now exported.** Reading it raised
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`; some tooling expects it to be reachable.
+
+### Added
+
+- `npm run smoke:package` packs the tarball, installs it into a throwaway
+  project, and loads it through `require()`, `import`, and `tsc` under `node16`
+  resolution. Runs in CI across Node 18, 20, and 22, and as part of
+  `prepublishOnly`.
+
+  The unit suite runs ts-jest against `src/`, so nothing exercised the built
+  output. That is why a completely unloadable ESM entry point shipped unnoticed
+  across four releases. Verified the check fails on the original defect before
+  relying on it.
+
 ## [1.0.0-beta] - 2026-08-07
 
 Realigns the SDK with the current Ziptax API. TaxCloud access has moved from a

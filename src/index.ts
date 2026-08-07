@@ -4,7 +4,7 @@
  */
 
 // Export main client
-export { ZiptaxClient } from './client';
+export { ZiptaxClient } from './client.js';
 
 // Export configuration types
 export type {
@@ -20,7 +20,7 @@ export type {
   GetRatesByPostalCodeParams,
   GetAccountMetricsParams,
   GetTicDataParams,
-} from './config';
+} from './config.js';
 
 // Export rate lookup, account, system, and TIC models
 export type {
@@ -58,7 +58,7 @@ export type {
   ProductCodeSearchResponse,
   ProductCodeRecommendation,
   ProductCodeRecommendationResponse,
-} from './models';
+} from './models/index.js';
 
 // Export merchant management models
 export type {
@@ -77,7 +77,7 @@ export type {
   SetMerchantCredentialsRequest,
   SetMerchantCredentialsResponse,
   DeleteMerchantCredentialsResponse,
-} from './models';
+} from './models/index.js';
 
 // Export merchant transaction models
 export type {
@@ -120,10 +120,10 @@ export type {
   ListCertificatesRequest,
   CertificateResponse,
   ListCertificatesResponse,
-} from './models';
+} from './models/index.js';
 
 // Export cart response type guard
-export { isTaxCloudCartResponse } from './models';
+export { isTaxCloudCartResponse } from './models/index.js';
 
 // Export webhook models
 export type {
@@ -134,7 +134,7 @@ export type {
   RateUpdatedData,
   RateUpdatedEvent,
   AnyWebhookEvent,
-} from './models';
+} from './models/index.js';
 
 // Export webhook helpers
 export {
@@ -143,7 +143,7 @@ export {
   verifyWebhookSignature,
   parseWebhookEvent,
   parseWebhookTimestamp,
-} from './utils/webhooks';
+} from './utils/webhooks.js';
 
 // Export exceptions
 export {
@@ -155,8 +155,8 @@ export {
   ZiptaxNetworkError,
   ZiptaxRetryError,
   ZiptaxConfigurationError,
-} from './exceptions';
+} from './exceptions.js';
 
 // Export retry options type and the named policies the client applies
-export type { RetryOptions } from './utils';
-export { NO_RETRY, RETRY_ON_NO_RESPONSE } from './utils/retry';
+export type { RetryOptions } from './utils/index.js';
+export { NO_RETRY, RETRY_ON_NO_RESPONSE } from './utils/retry.js';

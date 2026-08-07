@@ -1,7 +1,7 @@
 /**
  * Utility modules
  */
-export * from './http';
-export * from './retry';
-export * from './validation';
-export * from './webhooks';
+export * from './http.js';
+export * from './retry.js';
+export * from './validation.js';
+export * from './webhooks.js';

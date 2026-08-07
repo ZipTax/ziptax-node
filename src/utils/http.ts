@@ -8,9 +8,9 @@ import {
   ZiptaxAuthenticationError,
   ZiptaxNetworkError,
   ZiptaxRateLimitError,
-} from '../exceptions';
-import { retryWithBackoff, RetryOptions } from './retry';
-import { SDK_VERSION } from '../version';
+} from '../exceptions.js';
+import { retryWithBackoff, RetryOptions } from './retry.js';
+import { SDK_VERSION } from '../version.js';
 
 export interface HTTPClientConfig {
   /** Base URL for API requests */
