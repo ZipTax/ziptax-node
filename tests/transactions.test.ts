@@ -7,11 +7,21 @@ import { ZiptaxClient } from '../src/client';
 import { ZiptaxValidationError } from '../src/exceptions';
 import { HTTPClient } from '../src/utils/http';
 import { Cart, CalculateCartRequest, OrderLineItem, isTaxCloudCartResponse } from '../src/models';
+import { NO_RETRY, RETRY_ON_NO_RESPONSE } from '../src/utils/retry';
 
 jest.mock('../src/utils/http');
 
 const MERCHANT_ID = '6b3c1f5e-2a8d-4c9b-9f2e-1d7a4b6c8e10';
-const LIVE_CONFIG = { headers: { 'X-ENV': 'LIVE' } };
+
+// Reads carry the client's default retry policy; non-idempotent writes are
+// pinned to a single attempt so an unknown outcome is never re-sent. See
+// tests/retry-policy.test.ts for the behavioural coverage.
+const LIVE_READ_CONFIG = { headers: { 'X-ENV': 'LIVE' }, retryOptions: undefined };
+const LIVE_WRITE_CONFIG = { headers: { 'X-ENV': 'LIVE' }, retryOptions: NO_RETRY };
+const LIVE_CART_CONFIG = {
+  headers: { 'X-ENV': 'LIVE' },
+  retryOptions: RETRY_ON_NO_RESPONSE,
+};
 
 const origin = { line1: '1 Market St', city: 'San Francisco', state: 'CA', zip: '94105' };
 const destination = {
@@ -137,7 +147,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/cart/calculate',
         request,
-        LIVE_CONFIG
+        LIVE_CART_CONFIG
       );
     });
 
@@ -150,7 +160,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/cart/calculate',
         expect.anything(),
-        { headers: { 'X-ENV': 'TEST' } }
+        { headers: { 'X-ENV': 'TEST' }, retryOptions: RETRY_ON_NO_RESPONSE }
       );
     });
 
@@ -162,7 +172,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/cart/calculate',
         expect.anything(),
-        { headers: { 'X-ENV': 'TEST' } }
+        { headers: { 'X-ENV': 'TEST' }, retryOptions: RETRY_ON_NO_RESPONSE }
       );
     });
 
@@ -398,7 +408,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/cart/calculate',
         request,
-        LIVE_CONFIG
+        LIVE_CART_CONFIG
       );
     });
   });
@@ -447,7 +457,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/order/create',
         validOrder,
-        LIVE_CONFIG
+        LIVE_WRITE_CONFIG
       );
     });
 
@@ -518,7 +528,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/order/create-from-cart',
         request,
-        LIVE_CONFIG
+        LIVE_WRITE_CONFIG
       );
     });
 
@@ -549,7 +559,11 @@ describe('Merchant Transactions', () => {
       const result = await client.getOrder(request);
 
       expect(result).toEqual(mockOrderResponse);
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/merchant/order/get', request, LIVE_CONFIG);
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        '/merchant/order/get',
+        request,
+        LIVE_READ_CONFIG
+      );
     });
 
     it('should support expanding refunds', async () => {
@@ -563,7 +577,11 @@ describe('Merchant Transactions', () => {
       const result = await client.getOrder(request);
 
       expect(result.refunds).toEqual([]);
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/merchant/order/get', request, LIVE_CONFIG);
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        '/merchant/order/get',
+        request,
+        LIVE_READ_CONFIG
+      );
     });
 
     it('should reject a missing orderId', async () => {
@@ -588,7 +606,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/order/update',
         request,
-        LIVE_CONFIG
+        LIVE_WRITE_CONFIG
       );
     });
 
@@ -625,7 +643,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/refund/create',
         request,
-        LIVE_CONFIG
+        LIVE_WRITE_CONFIG
       );
     });
 
@@ -642,7 +660,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/refund/create',
         request,
-        LIVE_CONFIG
+        LIVE_WRITE_CONFIG
       );
     });
 
@@ -742,7 +760,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/cert/create',
         validCert,
-        LIVE_CONFIG
+        LIVE_WRITE_CONFIG
       );
     });
 
@@ -789,7 +807,11 @@ describe('Merchant Transactions', () => {
       const result = await client.getExemptionCertificate(request);
 
       expect(result).toEqual(mockCertificate);
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/merchant/cert/get', request, LIVE_CONFIG);
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        '/merchant/cert/get',
+        request,
+        LIVE_READ_CONFIG
+      );
     });
 
     it('should reject a missing certificateId on get', async () => {
@@ -806,7 +828,11 @@ describe('Merchant Transactions', () => {
       const result = await client.listExemptionCertificates(request);
 
       expect(result).toEqual(page);
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/merchant/cert/list', request, LIVE_CONFIG);
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        '/merchant/cert/list',
+        request,
+        LIVE_READ_CONFIG
+      );
     });
 
     it('should reject a limit above 100', async () => {
@@ -831,7 +857,7 @@ describe('Merchant Transactions', () => {
       expect(mockHttpClient.post).toHaveBeenCalledWith(
         '/merchant/cert/delete',
         request,
-        LIVE_CONFIG
+        LIVE_WRITE_CONFIG
       );
     });
 

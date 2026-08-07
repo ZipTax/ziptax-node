@@ -104,6 +104,51 @@ console.log(result.productDetail?.taxabilityCode.rateRules);
 `taxabilityCode` requires `product_rates`. US territories need no extra
 entitlement.
 
+#### Canadian responses differ in shape
+
+`countryCode: 'CAN'` is served by a separate path, so a few fields diverge from
+the US response. The types account for this, but your code should too:
+
+| Field | USA (and US territories) | Canada |
+| --- | --- | --- |
+| `baseRates[].jurType` | `US_STATE_SALES_TAX`, `US_COUNTY_SALES_TAX`, … | `GST`, `PST` |
+| `taxSummaries[].taxType` | `SALES_TAX`, `USE_TAX` | `Sales` |
+| `taxSummaries[].displayRates[].name` | jurisdiction names | `GST`, `PST`, `HST`, `QST` |
+| `service` | present | **absent** |
+| `sourcingRules` | present | **absent** |
+
+So `service` and `sourcingRules` are optional, and `jurType` / `taxType` are
+open-ended string unions rather than closed enums — the API can add jurisdiction
+types without an SDK release, and the published OpenAPI enums describe only the
+US path. Known values still autocomplete:
+
+```typescript
+const result = await client.getSalesTaxByAddress({
+  address: '100 Queen St W, Toronto, ON',
+  countryCode: 'CAN',
+});
+
+// Guard rather than assuming these exist
+console.log(result.service?.taxable);
+console.log(result.sourcingRules?.value);
+
+for (const rate of result.baseRates ?? []) {
+  switch (rate.jurType) {
+    case 'GST':
+    case 'PST':
+      console.log('Canadian component:', rate.jurType, rate.rate);
+      break;
+    default:
+      console.log('Other jurisdiction:', rate.jurType, rate.rate);
+  }
+}
+```
+
+`service.taxable` and `shipping.taxable` share one `V60Taxability` type of
+`'Y' | 'N' | 'L'`, where `L` means only the labor or handling portion is taxable
+when separately stated. Read `taxable` rather than parsing `description`: the API
+does not currently render distinct text for `L` on shipping.
+
 ### Get Sales Tax by Geolocation
 
 ```typescript
@@ -386,16 +431,47 @@ certificate automatically.
 
 ### Retries and idempotency
 
-| Operation | Safe to retry? |
-| --- | --- |
-| `getOrder`, `getExemptionCertificate`, `listExemptionCertificates` | Yes, these are reads |
-| `calculateCart` | Recalculates; retry only if you got no response |
-| `createOrder`, `createOrderFromCart`, `updateOrder`, `createExemptionCertificate`, `deleteExemptionCertificate` | No, may duplicate or clobber |
-| `refundOrder` | **No.** A duplicate refund is a financial incident |
+The SDK picks a retry policy per operation, so a write whose outcome is unknown
+is never silently re-sent:
 
-The SDK's automatic retry covers network failures and transient errors. It does
-not make a duplicated write safe, so treat `502` and `504` on a write as
-"unknown outcome" and confirm before retrying.
+| Operation | SDK behavior |
+| --- | --- |
+| Rate lookups, account metrics, TIC and system endpoints | Retried on network errors and `5xx` |
+| `getOrder`, `getExemptionCertificate`, `listExemptionCertificates` | Retried on network errors and `5xx` — these are reads |
+| `calculateCart` | Retried **only when no response arrived** (connection failure or timeout). A `5xx` means the service answered and may already have stored a cart, and every call is metered |
+| `createOrder`, `createOrderFromCart`, `updateOrder`, `createExemptionCertificate`, `deleteExemptionCertificate` | **Never retried.** Re-sending can duplicate or clobber |
+| `refundOrder` | **Never retried.** A duplicate refund is a financial incident |
+
+On a `502`, `504`, or timeout from a write, the SDK surfaces the original error
+immediately. Treat it as an **unknown outcome**: the compliance service may have
+committed the change before the connection broke. Confirm before retrying.
+
+```typescript
+try {
+  await client.refundOrder({ merchantId, orderId, items });
+} catch (error) {
+  if (error instanceof ZiptaxAPIError && [502, 504].includes(error.statusCode ?? 0)) {
+    // The refund may or may not have been recorded. Check before acting.
+    const order = await client.getOrder({ merchantId, orderId, expand: 'refunds' });
+    if (!order.refunds?.length) {
+      // Safe to retry now.
+    }
+  }
+}
+```
+
+If you have your own idempotency handling, opt a write back into retrying per
+call:
+
+```typescript
+await client.createOrder(request, {
+  retryOptions: { maxAttempts: 3 },
+});
+```
+
+Do this on `refundOrder` only if you can guarantee a duplicate refund is
+impossible. The client-wide `retryOptions` still applies to everything else; a
+per-call value overrides it.
 
 ## Event Webhooks
 

@@ -48,6 +48,9 @@ Other:
 - `environment` client option and a per-call `RequestOptions` override, sending `X-ENV: LIVE | TEST` on Merchant Transactions calls
 - Cart and order support for `discounts` (line-item and order-level), `exemption`, `deliveredBySeller`, `batchId`, `channel`, `excludeFromFiling`, and credit orders via `kind`
 - `isTaxCloudCartResponse()` type guard to narrow a cart result by merchant compliance model
+- `retryOptions` on `RequestOptions`, to override the retry policy for a single merchant call
+- `NO_RETRY` and `RETRY_ON_NO_RESPONSE` retry policies, exported so callers can reuse what the client applies
+- `V60Taxability`, `V60TaxType`, and `V60JurisdictionType` exported types
 - `validateUuid()`, `validateNumberRange()`, and `validateHistorical()` validation helpers
 - Examples: `merchant-management.ts`, `merchant-transactions.ts`, `webhooks.ts`
 
@@ -70,6 +73,10 @@ than `api.v3.taxcloud.com`:
 - `validateProductQuery()` allows 1024 characters, up from 500, matching the API limit
 
 ### Fixed
+- **Non-idempotent merchant writes are no longer retried automatically.** `HTTPClient` applied one retry policy to every request, and the default retries network errors and any `5xx`. That silently re-sent `createOrder`, `createOrderFromCart`, `updateOrder`, `createExemptionCertificate`, `deleteExemptionCertificate`, and `refundOrder` on a `502`, `504`, or timeout — exactly the statuses whose outcome is unknown, where a second attempt can duplicate an order, a certificate, or a refund. The SDK now selects a policy per operation: writes never retry, `calculateCart` retries only when no response arrived at all, and reads keep the previous behavior. A per-call `retryOptions` on `RequestOptions` lets a caller with its own idempotency handling opt back in
+- `V60BaseRate.jurType` and `V60TaxSummary.taxType` are open-ended unions rather than closed enums. `countryCode=CAN` is served by a separate path that returns `GST`/`PST` for `jurType` and `Sales` for `taxType`, none of which appear in the published OpenAPI enums, so the closed unions made valid Canadian responses unassignable. Known values still autocomplete
+- `V60Response.service` and `.sourcingRules` are optional. The Canadian response omits both entirely, so typing them as required misdescribed every `countryCode=CAN` lookup
+- `V60Shipping.taxable` accepts `'L'`, matching `V60Service.taxable`. Both are assigned verbatim from the same tax-table taxability vocabulary; only the service branch rendered distinct text for `L`, which hid that the value reaches `shipping.taxable` too. `V60PostalCodeResult.txbService` and `.txbFreight` likewise. All four now share a single `V60Taxability` type
 - `ProductCodeSearchResult.ticId`, `.rank`, and `.score` are typed `number`; they were `string` but the API returns numbers
 - `ProductCodeRecommendation.ticId` is typed `number` for the same reason
 - Rate lookups request `/request/v60` without a trailing slash. `/request/v60/` returns a 301, so every call was paying an extra redirect

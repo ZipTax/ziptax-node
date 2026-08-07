@@ -29,6 +29,8 @@ export type {
   V60ResponseInfo,
   V60BaseRate,
   V60JurisdictionType,
+  V60TaxType,
+  V60Taxability,
   V60Service,
   V60Shipping,
   V60ShippingExtended,
@@ -155,5 +157,6 @@ export {
   ZiptaxConfigurationError,
 } from './exceptions';
 
-// Export retry options type
+// Export retry options type and the named policies the client applies
 export type { RetryOptions } from './utils';
+export { NO_RETRY, RETRY_ON_NO_RESPONSE } from './utils/retry';

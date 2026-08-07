@@ -2,7 +2,8 @@
  * Main ZipTax API client
  */
 
-import { HTTPClient } from './utils/http';
+import { HTTPClient, HTTPRequestOptions } from './utils/http';
+import { RetryOptions, NO_RETRY, RETRY_ON_NO_RESPONSE } from './utils/retry';
 import { ZiptaxValidationError } from './exceptions';
 import {
   validateApiKey,
@@ -515,10 +516,13 @@ export class ZiptaxClient {
   ): Promise<AnyCalculateCartResponse> {
     this.validateCartRequest(request);
 
+    // Retried only when no response arrived at all. A 5xx means the service
+    // answered and may already have calculated (and stored) the cart, and every
+    // call is metered against the merchant allowance.
     return this.httpClient.post<AnyCalculateCartResponse>(
       '/merchant/cart/calculate',
       request,
-      this.merchantRequestConfig(options)
+      this.merchantRequestConfig(options, RETRY_ON_NO_RESPONSE)
     );
   }
 
@@ -559,7 +563,7 @@ export class ZiptaxClient {
     return this.httpClient.post<OrderResponse>(
       '/merchant/order/create',
       request,
-      this.merchantRequestConfig(options)
+      this.merchantWriteConfig(options)
     );
   }
 
@@ -588,7 +592,7 @@ export class ZiptaxClient {
     return this.httpClient.post<OrderResponse>(
       '/merchant/order/create-from-cart',
       request,
-      this.merchantRequestConfig(options)
+      this.merchantWriteConfig(options)
     );
   }
 
@@ -629,7 +633,7 @@ export class ZiptaxClient {
     return this.httpClient.post<OrderResponse>(
       '/merchant/order/update',
       request,
-      this.merchantRequestConfig(options)
+      this.merchantWriteConfig(options)
     );
   }
 
@@ -672,7 +676,7 @@ export class ZiptaxClient {
     return this.httpClient.post<RefundResponse>(
       '/merchant/refund/create',
       request,
-      this.merchantRequestConfig(options)
+      this.merchantWriteConfig(options)
     );
   }
 
@@ -723,7 +727,7 @@ export class ZiptaxClient {
     return this.httpClient.post<CertificateResponse>(
       '/merchant/cert/create',
       request,
-      this.merchantRequestConfig(options)
+      this.merchantWriteConfig(options)
     );
   }
 
@@ -797,7 +801,7 @@ export class ZiptaxClient {
     return this.httpClient.post<CertificateResponse>(
       '/merchant/cert/delete',
       request,
-      this.merchantRequestConfig(options)
+      this.merchantWriteConfig(options)
     );
   }
 
@@ -806,13 +810,36 @@ export class ZiptaxClient {
   // -------------------------------------------------------------------------
 
   /**
-   * Build the axios config for a Merchant Transactions call, applying the
-   * X-ENV header when targeting the merchant's Test environment.
+   * Build the request config for a Merchant Transactions call: the X-ENV header
+   * plus the retry policy appropriate to the operation.
+   *
+   * @param options - Per-request overrides from the caller
+   * @param defaultRetry - Policy to use when the caller has not overridden it.
+   *   Reads get the client default; non-idempotent writes get {@link NO_RETRY}.
    */
-  private merchantRequestConfig(options?: RequestOptions): { headers: Record<string, string> } {
+  private merchantRequestConfig(
+    options?: RequestOptions,
+    defaultRetry?: RetryOptions
+  ): HTTPRequestOptions {
     const environment: MerchantEnvironment = options?.environment ?? this.config.environment;
 
-    return { headers: { 'X-ENV': environment } };
+    return {
+      headers: { 'X-ENV': environment },
+      retryOptions: options?.retryOptions ?? defaultRetry,
+    };
+  }
+
+  /**
+   * Request config for a non-idempotent merchant write.
+   *
+   * These are never retried automatically. A 502, a 504, or a client-side
+   * timeout leaves the outcome genuinely unknown — the compliance service may
+   * have committed the order, certificate, or refund before the connection
+   * broke — so re-sending risks duplicating a financial transaction. The error
+   * surfaces to the caller, who can confirm with a read before deciding.
+   */
+  private merchantWriteConfig(options?: RequestOptions): HTTPRequestOptions {
+    return this.merchantRequestConfig(options, NO_RETRY);
   }
 
   /**

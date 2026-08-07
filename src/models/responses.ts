@@ -34,9 +34,13 @@ export interface V60Metadata {
 export interface V60BaseRate {
   /** Tax rate (decimal format, e.g., 0.0775 for 7.75%) */
   rate: number;
-  /** Jurisdiction type (e.g., US_STATE_SALES_TAX, US_COUNTY_SALES_TAX) */
+  /**
+   * Jurisdiction type. `US_*` for `countryCode=USA` and US territories, `GST` or
+   * `PST` for `countryCode=CAN`. Open-ended: narrow with a `switch` or an
+   * equality check rather than assuming the listed values are exhaustive.
+   */
   jurType: V60JurisdictionType;
-  /** Actual jurisdiction name (e.g., 'CA', 'ORANGE', 'IRVINE') */
+  /** Actual jurisdiction name (e.g., 'CA', 'ORANGE', 'IRVINE', 'Ontario') */
   jurName: string;
   /** Human-readable jurisdiction description */
   jurDescription: string;
@@ -45,7 +49,16 @@ export interface V60BaseRate {
 }
 
 /**
- * Jurisdiction types returned in baseRates
+ * Jurisdiction types known to appear in `baseRates`.
+ *
+ * The US values come from the `countryCode=USA` path, which also serves the US
+ * territories (PRI, ASM, GUM, MNP, VIR). `countryCode=CAN` is served by a
+ * separate path that reports `GST` and `PST` instead.
+ *
+ * The `(string & {})` arm keeps the type open while preserving editor
+ * completion for the known values. The published OpenAPI enum lists only the
+ * `US_*` values and does not describe the Canadian path, so treating this as a
+ * closed set would reject responses the API really returns.
  */
 export type V60JurisdictionType =
   | 'US_STATE_SALES_TAX'
@@ -55,7 +68,20 @@ export type V60JurisdictionType =
   | 'US_CITY_SALES_TAX'
   | 'US_CITY_USE_TAX'
   | 'US_DISTRICT_SALES_TAX'
-  | 'US_DISTRICT_USE_TAX';
+  | 'US_DISTRICT_USE_TAX'
+  | 'GST'
+  | 'PST'
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | (string & {});
+
+/**
+ * Taxability indicator.
+ *
+ * - `Y` taxable
+ * - `N` not taxable
+ * - `L` only the labor or handling portion is taxable, when separately stated
+ */
+export type V60Taxability = 'Y' | 'N' | 'L';
 
 /**
  * Service taxability information
@@ -63,8 +89,8 @@ export type V60JurisdictionType =
 export interface V60Service {
   /** Service adjustment type */
   adjustmentType: string;
-  /** Taxability indicator ('L' = taxability varies by locality) */
-  taxable: 'Y' | 'N' | 'L';
+  /** Taxability indicator */
+  taxable: V60Taxability;
   /** Service description */
   description: string;
 }
@@ -92,10 +118,17 @@ export interface V60ShippingExtended {
  * Shipping taxability information
  */
 export interface V60Shipping {
+  /**
+   * Taxability indicator. Carries the freight taxability column verbatim, which
+   * uses the same `Y`/`N`/`L` vocabulary as {@link V60Service.taxable}.
+   *
+   * Note that `description` does not currently distinguish `L`: the API maps
+   * only `Y` and `N` to text and falls through to "Freight non-taxable"
+   * otherwise, so read `taxable` rather than parsing `description`.
+   */
+  taxable: V60Taxability;
   /** Shipping adjustment type */
   adjustmentType: string;
-  /** Taxability indicator */
-  taxable: 'Y' | 'N';
   /** Shipping description */
   description: string;
   /** Extended shipping detail (only when `shippingExtended` is requested) */
@@ -125,16 +158,33 @@ export interface V60DisplayRate {
 }
 
 /**
+ * Tax types known to appear in `taxSummaries`.
+ *
+ * `SALES_TAX` and `USE_TAX` come from the `countryCode=USA` path. The Canadian
+ * path reports `Sales`. Left open for the same reason as
+ * {@link V60JurisdictionType}: the OpenAPI enum describes only the US path.
+ */
+export type V60TaxType =
+  | 'SALES_TAX'
+  | 'USE_TAX'
+  | 'Sales'
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | (string & {});
+
+/**
  * Tax rate summary
  */
 export interface V60TaxSummary {
   /** Summary tax rate */
   rate: number;
-  /** Tax type */
-  taxType: 'SALES_TAX' | 'USE_TAX';
+  /** Tax type. `SALES_TAX` or `USE_TAX` for the US path, `Sales` for Canada */
+  taxType: V60TaxType;
   /** Summary description */
   summaryName: string;
-  /** Array of display rate breakdowns */
+  /**
+   * Rate breakdown. For Canada the entry names are the component taxes:
+   * `GST`, `PST`, `HST`, or `QST`.
+   */
   displayRates: V60DisplayRate[] | null;
 }
 
@@ -249,12 +299,24 @@ export interface V60Response {
   metadata: V60Metadata;
   /** Base tax rates by jurisdiction */
   baseRates: V60BaseRate[] | null;
-  /** Service taxability information */
-  service: V60Service;
+  /**
+   * Service taxability information.
+   *
+   * Optional because the Canadian response omits the key entirely: that path
+   * does not report service taxability. `| null` is kept for symmetry with
+   * `sourcingRules`.
+   */
+  service?: V60Service | null;
   /** Shipping taxability information */
   shipping: V60Shipping;
-  /** Sourcing rules (origin vs destination) */
-  sourcingRules: V60SourcingRules | null;
+  /**
+   * Sourcing rules (origin vs destination).
+   *
+   * Optional because the Canadian response omits the key entirely: that path
+   * has no origin/destination sourcing distinction. `| null` is kept as well so
+   * an explicit null would also be representable.
+   */
+  sourcingRules?: V60SourcingRules | null;
   /** Tax rate summaries */
   taxSummaries: V60TaxSummary[] | null;
   /** Address details */
@@ -280,9 +342,9 @@ export interface V60PostalCodeResult {
   /** Total use tax rate */
   taxUse: number;
   /** Service taxability indicator */
-  txbService: 'Y' | 'N';
+  txbService: V60Taxability;
   /** Freight taxability indicator */
-  txbFreight: 'Y' | 'N';
+  txbFreight: V60Taxability;
   /** State sales tax rate */
   stateSalesTax: number;
   /** State use tax rate */

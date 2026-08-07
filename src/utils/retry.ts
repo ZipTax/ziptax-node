@@ -36,6 +36,29 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
 };
 
 /**
+ * Never retry. Used for non-idempotent writes, where re-sending a request whose
+ * outcome is unknown can duplicate the effect: a second order, a second
+ * certificate, or a second refund.
+ *
+ * The caller sees the original error and decides what to do, which is the only
+ * safe order of operations for a write.
+ */
+export const NO_RETRY: RetryOptions = { maxAttempts: 1 };
+
+/**
+ * Retry only when no response was received at all: a connection failure, DNS
+ * failure, or client-side timeout.
+ *
+ * A 5xx is deliberately excluded. The server answered, so it may well have
+ * processed the request; a 504 in particular means an upstream timed out after
+ * receiving it. This suits an operation that is cheap to repeat but not free of
+ * side effects, such as cart calculation, which is metered and may store a cart.
+ */
+export const RETRY_ON_NO_RESPONSE: RetryOptions = {
+  shouldRetry: (error: Error) => error.name === 'ZiptaxNetworkError',
+};
+
+/**
  * Calculate delay with exponential backoff
  */
 function calculateDelay(attempt: number, options: Required<RetryOptions>): number {

@@ -47,6 +47,17 @@ export const DEFAULT_CONFIG = {
 export interface RequestOptions {
   /** Override the client's default environment for this call */
   environment?: MerchantEnvironment;
+  /**
+   * Override the retry policy for this call.
+   *
+   * Non-idempotent writes (order create, order update, certificate create and
+   * delete, refund create) default to not retrying at all, because re-sending a
+   * request whose outcome is unknown can duplicate the effect. Set this only if
+   * the caller has its own idempotency handling.
+   *
+   * Enabling retries on `refundOrder` risks issuing a duplicate refund.
+   */
+  retryOptions?: RetryOptions;
 }
 
 /**

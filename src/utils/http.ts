@@ -26,6 +26,18 @@ export interface HTTPClientConfig {
 }
 
 /**
+ * Axios config plus a per-request retry override.
+ *
+ * The override is merged over the client's `retryOptions`, so a single endpoint
+ * can opt out of retrying without changing the policy for everything else. It is
+ * stripped before the config reaches axios.
+ */
+export interface HTTPRequestOptions extends AxiosRequestConfig {
+  /** Retry policy for this request only */
+  retryOptions?: RetryOptions;
+}
+
+/**
  * HTTP client for making API requests
  */
 export class HTTPClient {
@@ -84,28 +96,36 @@ export class HTTPClient {
   /**
    * Make a GET request
    */
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    return this.request<T>({ ...config, method: 'GET', url });
+  async get<T>(url: string, config?: HTTPRequestOptions): Promise<T> {
+    const { retryOptions, ...axiosConfig } = config ?? {};
+    return this.request<T>({ ...axiosConfig, method: 'GET', url }, retryOptions);
   }
 
   /**
    * Make a POST request
    */
-  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return this.request<T>({ ...config, method: 'POST', url, data });
+  async post<T>(url: string, data?: unknown, config?: HTTPRequestOptions): Promise<T> {
+    const { retryOptions, ...axiosConfig } = config ?? {};
+    return this.request<T>({ ...axiosConfig, method: 'POST', url, data }, retryOptions);
   }
 
   /**
    * Make a PATCH request
    */
-  async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
-    return this.request<T>({ ...config, method: 'PATCH', url, data });
+  async patch<T>(url: string, data?: unknown, config?: HTTPRequestOptions): Promise<T> {
+    const { retryOptions, ...axiosConfig } = config ?? {};
+    return this.request<T>({ ...axiosConfig, method: 'PATCH', url, data }, retryOptions);
   }
 
   /**
-   * Make a request with retry logic
+   * Make a request with retry logic.
+   *
+   * @param config - Axios request config
+   * @param retryOverride - Per-request retry policy, merged over the client's
+   *   own. Non-idempotent writes pass `NO_RETRY` here so a request whose outcome
+   *   is unknown is never silently re-sent.
    */
-  private async request<T>(config: AxiosRequestConfig): Promise<T> {
+  private async request<T>(config: AxiosRequestConfig, retryOverride?: RetryOptions): Promise<T> {
     const makeRequest = async (): Promise<T> => {
       try {
         const response: AxiosResponse<T> = await this.axiosInstance.request(config);
@@ -116,7 +136,7 @@ export class HTTPClient {
       }
     };
 
-    return retryWithBackoff(makeRequest, this.retryOptions);
+    return retryWithBackoff(makeRequest, { ...this.retryOptions, ...retryOverride });
   }
 
   /**
